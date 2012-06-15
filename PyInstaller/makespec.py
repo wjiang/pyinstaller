@@ -29,7 +29,9 @@ onefiletmplt = """# -*- mode: python -*-
 a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
-             hookspath=%(hookspath)r)
+             hookspath=%(hookspath)r,
+             excludes=%(excludes)r
+             )
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
@@ -47,7 +49,9 @@ onedirtmplt = """# -*- mode: python -*-
 a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
-             hookspath=%(hookspath)r)
+             hookspath=%(hookspath)r,
+             excludes=%(excludes)r
+             )
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
@@ -70,7 +74,9 @@ comsrvrtmplt = """# -*- mode: python -*-
 a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
-             hookspath=%(hookspath)r)
+             hookspath=%(hookspath)r,
+             excludes=%(excludes)r
+             )
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
@@ -176,6 +182,10 @@ def __add_options(parser):
                  help="additional path to search for hooks "
                       "(may be given several times)")    
 
+    g.add_option("--exclude-module", action="append", dest="excludes",
+                 help="exclude the python module "
+                      "(may be given several times)")    
+
     g = parser.add_option_group('How to generate')
     g.add_option("-d", "--debug", action="store_true", default=False,
                  help=("use the debug (verbose) build of the executable for "
@@ -233,7 +243,7 @@ def main(scripts, name=None, onefile=0,
          console=True, debug=False, strip=0, noupx=0, comserver=0,
          workdir=None, pathex=[], version_file=None,
          icon_file=None, manifest=None, resources=[], crypt=None,
-         hiddenimports=None, hookspath=None, **kwargs):
+         hiddenimports=None, hookspath=None, excludes=None, **kwargs):
 
     if not name:
         name = os.path.splitext(os.path.basename(scripts[0]))[0]
@@ -266,13 +276,15 @@ def main(scripts, name=None, onefile=0,
     if resources:
         resources = map(quote_win_filepath, resources)
         exe_options = "%s, resources=%s" % (exe_options, repr(resources))
-
+	
+	excludes = excludes or []
     hiddenimports = hiddenimports or []
     scripts = map(Path, scripts)
 
     d = {'scripts':scripts,
          'pathex' :pathex,
          'hiddenimports': hiddenimports,
+         'excludes': excludes,
          'hookspath': hookspath,
          #'exename': '',
          'name': name,
