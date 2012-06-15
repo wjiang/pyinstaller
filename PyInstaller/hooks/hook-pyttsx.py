@@ -1,4 +1,6 @@
 #
+# Copyright (C) 2012, Martin Zibricky
+#
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
@@ -14,10 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 
-# Test import of new-style email module names.
-# This should work on Python 2.5+
-from email import utils
-from email.header import Header
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.nonmultipart import MIMENonMultipart
+# pyttsx imports drivers module based on specific platform.
+# Found at http://mrmekon.tumblr.com/post/5272210442/pyinstaller-and-pyttsx
+hiddenimports = [
+    'drivers',
+    'drivers.dummy',
+    'drivers.espeak',
+    'drivers.nsss',
+    'drivers.sapi5',
+]

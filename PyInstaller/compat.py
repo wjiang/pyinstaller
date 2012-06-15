@@ -132,6 +132,29 @@ except ImportError:
     from sets import Set as set
 
 
+# Function os.path.relpath() available in Python 2.6+.
+if hasattr(os.path, 'relpath'):
+    from os.path import relpath
+# Own implementation of relpath function.
+else:
+    def relpath(path, start=os.curdir):
+        """
+        Return a relative version of a path.
+        """
+        if not path:
+            raise ValueError("no path specified")
+        # Normalize paths.
+        path = os.path.normpath(path)
+        start = os.path.abspath(start) + os.sep  # os.sep has to be here.
+        # Get substring.
+        relative = path[len(start):len(path)]
+        return relative
+
+
+# Some code parts needs to behave different when running in virtualenv.
+is_virtualenv = hasattr(sys, 'real_prefix')
+
+
 def architecture():
     """
     Returns the bit depth of the python interpreter's architecture as
@@ -220,14 +243,14 @@ def exec_command_rc(*cmdargs, **kwargs):
     return subprocess.call(cmdargs, **kwargs)
 
 
-def exec_command_all(*cmdargs):
+def exec_command_all(*cmdargs, **kwargs):
     """
     Wrap creating subprocesses
 
     Return tuple (exit_code, stdout, stderr) of the invoked command.
     """
-    proc = subprocess.Popen(cmdargs, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, shell=False)
+    proc = subprocess.Popen(cmdargs, bufsize=-1,  # Default OS buffer size.
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
     # Waits for subprocess to complete.
     out, err = proc.communicate()
 
@@ -271,6 +294,16 @@ def exec_python_rc(*args, **kwargs):
     """
     cmdargs, kwargs = __wrap_python(args, kwargs)
     return exec_command_rc(*cmdargs, **kwargs)
+
+
+def exec_python_all(*args, **kwargs):
+    """
+    Wrap running python script in a subprocess.
+
+    Return tuple (exit_code, stdout, stderr) of the invoked command.
+    """
+    cmdargs, kwargs = __wrap_python(args, kwargs)
+    return exec_command_all(*cmdargs, **kwargs)
 
 
 # Obsolete command line options.

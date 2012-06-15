@@ -24,12 +24,12 @@
 # by this program but be recognizable by any one as a dependency of that
 # particual test.
 
-import os
-import sys
 import glob
+import optparse
+import os
 import re
 import shutil
-import optparse
+import sys
 
 try:
     import PyInstaller
@@ -43,7 +43,7 @@ except ImportError:
 
 
 from PyInstaller import HOMEPATH
-from PyInstaller import is_py23, is_py25, is_py26, is_win, is_darwin
+from PyInstaller import is_py23, is_py24, is_py25, is_py26, is_win, is_darwin
 from PyInstaller import compat
 from PyInstaller.lib import unittest2 as unittest
 from PyInstaller.lib import junitxml
@@ -51,6 +51,7 @@ from PyInstaller.utils import misc
 
 
 VERBOSE = False
+REPORT = False
 # Directory with this script (runtests.py).
 BASEDIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -91,7 +92,7 @@ class SkipChecker(object):
         self.MIN_VERSION_OR_OS = {
             'basic/test_time': is_py23,
             'basic/test_celementtree': is_py25,
-            'basic/test_email2': is_py23,
+            'basic/test_email': is_py25,
             # On Mac DYLD_LIBRARY_PATH is not used.
             'basic/test_absolute_ld_library_path': not is_win and not is_darwin,
             'import/test_c_extension': is_py25,
@@ -106,6 +107,7 @@ class SkipChecker(object):
             'basic/test_ctypes': ['ctypes'],
             'basic/test_module_attributes': ['xml.etree.cElementTree'],
             'basic/test_nestedlaunch1': ['ctypes'],
+            'basic/test_onefile_multiprocess': ['multiprocessing'],
             'libraries/test_enchant': ['enchant'],
             'libraries/test_Image': ['Image'],
             'libraries/test_numpy': ['numpy'],
@@ -113,6 +115,7 @@ class SkipChecker(object):
             'libraries/test_PIL': ['PIL'],
             'libraries/test_PIL2': ['PIL'],
             'libraries/test_pycrypto': ['Crypto'],
+            'libraries/test_pyttsx': ['pyttsx'],
             'libraries/test_sqlalchemy': ['sqlalchemy', 'MySQLdb', 'psycopg2'],
             'libraries/test_usb': ['ctypes', 'usb'],
             'libraries/test_wx': ['wx'],
@@ -127,7 +130,6 @@ class SkipChecker(object):
             }
         # Other dependecies of some tests.
         self.DEPENDENCIES = {
-            'basic/test_2': ['Making zlib module optional will be dropped.'],
             'basic/test_ctypes': [depend.c_compiler()],
             # Support for unzipped eggs is not yet implemented.
             # http://www.pyinstaller.org/ticket/541
@@ -196,46 +198,46 @@ class SkipChecker(object):
 NO_SPEC_FILE = [
     'basic/test_absolute_ld_library_path',
     'basic/test_absolute_python_path',
+    'basic/test_email',
+    'basic/test_email_oldstyle',
+    'basic/test_onefile_multiprocess',
     'basic/test_python_home',
     'import/test_c_extension',
     'import/test_onefile_c_extension',
     'libraries/test_enchant',
     'libraries/test_onefile_tkinter',
     'libraries/test_sqlalchemy',
+    'libraries/test_pyttsx',
     'libraries/test_usb',
 ]
 
 
 class BuildTestRunner(object):
 
-    def __init__(self, test_name, verbose=False):
+    def __init__(self, test_name, verbose=False, report=False):
         # Use path separator '/' even on windows for test_name name.
         self.test_name = test_name.replace('\\', '/')
         self.verbose = verbose
         self.test_dir, self.test_file = os.path.split(self.test_name)
+        # For junit xml report some behavior is changed.
+        # Especially redirecting sys.stdout.
+        self.report = report
 
-    def _msg(self, *args, **kw):
+    def _msg(self, text):
         """
         Important text. Print it to console only in verbose mode.
         """
-        if self.verbose:
-            short = kw.get('short', 0)
-            sep = kw.get('sep', '#')
-            if not short:
-                print
-            print sep * 20,
-            for a in args:
-                print a,
-            print sep * 20
-            if not short:
-                print
+        # This allows to redirect stdout to junit xml report.
+        sys.stdout.write('\n' + 10 * '#' + ' ' + text + ' ' + 10 * '#' + '\n\n')
+        sys.stdout.flush()
 
     def _plain_msg(self, text):
         """
         Print text to console only in verbose mode.
         """
         if self.verbose:
-            print(text)
+            sys.stdout.write(text + '\n')
+            sys.stdout.flush()
 
     def _find_exepath(self, test, parent_dir='dist'):
         of_prog = os.path.join(parent_dir, test)  # one-file deploy filename
@@ -257,7 +259,7 @@ class BuildTestRunner(object):
         """
         Run executable created by PyInstaller.
         """
-        self._msg('EXECUTING TEST', self.test_name)
+        self._msg('EXECUTING TEST ' + self.test_name)
         # Run the test in a clean environment to make sure they're
         # really self-contained
         path = compat.getenv('PATH')
@@ -274,9 +276,9 @@ class BuildTestRunner(object):
             prog = os.path.join(os.curdir, os.path.basename(prog))
             retcode, out, err = compat.exec_command_all(prog)
             os.chdir(old_wd)
-            self._msg('STDOUT')
+            self._msg('STDOUT %s' % self.test_name)
             self._plain_msg(out)
-            self._msg('STDERR')
+            self._msg('STDERR %s' % self.test_name)
             self._plain_msg(err)
             compat.setenv("PATH", path)
             return retcode
@@ -306,7 +308,7 @@ class BuildTestRunner(object):
         else:
             OPTS.append('--onedir')
 
-        self._msg("BUILDING TEST", self.test_name)
+        self._msg("BUILDING TEST" + self.test_name)
 
         # Use pyinstaller.py for building test_name.
         testfile_spec = self.test_file + '.spec'
@@ -315,7 +317,17 @@ class BuildTestRunner(object):
             # for main script.
             testfile_spec = self.test_file + '.py'
 
-        retcode = compat.exec_python_rc(os.path.join(HOMEPATH, 'pyinstaller.py'),
+        pyinst_script = os.path.join(HOMEPATH, 'pyinstaller.py')
+
+        # In report mode is stdout and sys.stderr redirected.
+        if self.report:
+            # Write output from subprocess to stdout/err.
+            retcode, out, err = compat.exec_python_all(pyinst_script,
+                  testfile_spec, *OPTS)
+            sys.stdout.write(out)
+            sys.stdout.write(err)
+        else:
+            retcode = compat.exec_python_rc(pyinst_script,
                   testfile_spec, *OPTS)
 
         return retcode == 0
@@ -340,10 +352,10 @@ class BuildTestRunner(object):
         are not defined.
         """
         logsfn = glob.glob(self.test_file + '.toc')
-        # other main scritps do not start with 'test_'
+        # Other main scritps do not start with 'test_'.
         logsfn += glob.glob(self.test_file.split('_', 1)[1] + '_?.toc')
         for logfn in logsfn:
-            self._msg("EXECUTING MATCHING", logfn)
+            self._msg("EXECUTING MATCHING " + logfn)
             tmpname = os.path.splitext(logfn)[0]
             prog = self._find_exepath(tmpname)
             if prog is None:
@@ -352,7 +364,7 @@ class BuildTestRunner(object):
             fname_list = compat.exec_python(
                 os.path.join(HOMEPATH, 'utils', 'ArchiveViewer.py'),
                 '-b', '-r', prog)
-            # fix line-endings so eval() does not fail
+            # Fix line-endings so eval() does not fail.
             fname_list = fname_list.replace('\r\n', '\n').replace('\n\r', '\n')
             fname_list = eval(fname_list)
             pattern_list = eval(open(logfn, 'rU').read())
@@ -368,7 +380,10 @@ class BuildTestRunner(object):
                 if not found:
                     self._plain_msg('MISSING: %s' % pattern)
 
-            return not count < len(pattern_list)
+            # Not all modules matched.
+            # Stop comparing other .toc files and fail the test.
+            if count < len(pattern_list):
+                return False
 
         return True
 
@@ -411,7 +426,7 @@ class GenericTestCase(unittest.TestCase):
         if not req_met:
             raise unittest.SkipTest(msg)
         # Create a build and test it.
-        b = BuildTestRunner(self.test_name, verbose=VERBOSE)
+        b = BuildTestRunner(self.test_name, verbose=VERBOSE, report=REPORT)
         self.assertTrue(b.test_exists(),
                 msg='Test %s not found.' % self.test_name)
         self.assertTrue(b.test_building(),
@@ -546,6 +561,8 @@ def run_tests(test_suite, xml_file):
         print 'Writting test results to: %s' % xml_file
         fp = open('report.xml', 'w')
         result = junitxml.JUnitXmlResult(fp)
+        # Text from stdout/stderr should be added to failed test cases.
+        result.buffer = True
         result.startTestRun()
         test_suite.run(result)
         result.stopTestRun()
@@ -575,8 +592,9 @@ def main():
 
     opts, args = parser.parse_args()
 
-    global VERBOSE
+    global VERBOSE, REPORT
     VERBOSE = opts.verbose
+    REPORT = opts.junitxml is not None
 
     # Do only cleanup.
     if opts.clean:

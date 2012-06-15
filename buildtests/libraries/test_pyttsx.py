@@ -1,4 +1,6 @@
 #
+# Copyright (C) 2012, Martin Zibricky
+#
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
@@ -11,13 +13,16 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 
-# Test import of new-style email module names.
-# This should work on Python 2.5+
-from email import utils
-from email.header import Header
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.nonmultipart import MIMENonMultipart
+# Basic code example from pyttsx tutorial.
+# http://packages.python.org/pyttsx/engine.html#examples
+
+
+import pyttsx
+
+engine = pyttsx.init()
+engine.say('Sally sells seashells by the seashore.')
+engine.say('The quick brown fox jumped over the lazy dog.')
+engine.runAndWait()

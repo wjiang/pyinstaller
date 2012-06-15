@@ -32,7 +32,7 @@
 
 // To call TransformProcessType in the child process
 #if defined(__APPLE__) && defined(WINDOWED)
-#include "Processes.h"
+#include <Carbon/Carbon.h>
 #endif
 
 #define MAX_STATUS_LIST 20
@@ -131,6 +131,7 @@ int main(int argc, char* argv[])
 #ifdef WIN32
         ReleaseActContext();
 #endif
+	finalizePython();
     } else {
         if (extractBinaries(status_list)) {
             VS("Error extracting binaries\n");

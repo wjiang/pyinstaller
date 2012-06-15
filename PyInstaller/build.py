@@ -136,10 +136,11 @@ def compile_pycos(toc):
         # has been written by a different Python version.
         needs_compile = (mtime(source_fnm) > mtime(fnm)
                          or
-                         open(source_fnm, 'rb').read()[:4] != imp.get_magic())
+                         open(fnm, 'rb').read()[:4] != imp.get_magic())
         if needs_compile:
             try:
-                py_compile.compile(source_fnm)
+                py_compile.compile(source_fnm, fnm)
+                logger.debug("compiled %s", source_fnm)
             except IOError:
                 # If we're compiling on a system directory, probably we don't
                 # have write permissions; thus we compile to a local directory
@@ -161,8 +162,12 @@ def compile_pycos(toc):
                     os.makedirs(leading)
 
                 fnm = os.path.join(leading, mod_name + ext)
-                py_compile.compile(source_fnm, fnm)
-            logger.debug("compiled %s", source_fnm)
+                needs_compile = (mtime(source_fnm) > mtime(fnm)
+                                 or
+                                 open(fnm, 'rb').read()[:4] != imp.get_magic())
+                if needs_compile:
+                    py_compile.compile(source_fnm, fnm)
+                    logger.debug("compiled %s", source_fnm)
 
         new_toc.append((nm, fnm, typ))
 
@@ -352,8 +357,13 @@ class Analysis(Target):
     def __init__(self, scripts=None, pathex=None, hiddenimports=None,
                  hookspath=None, excludes=None):
         Target.__init__(self)
+        # Include initialization Python code in PyInstaller analysis.
+        _init_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'loader')
         self.inputs = [
             os.path.join(HOMEPATH, "support", "_pyi_bootstrap.py"),
+            os.path.join(_init_code_path, 'archive.py'),
+            os.path.join(_init_code_path, 'carchive.py'),
+            os.path.join(_init_code_path, 'iu.py'),
             ]
         for script in scripts:
             if absnormpath(script) in self._old_scripts:
@@ -485,12 +495,26 @@ class Analysis(Target):
         datas = []    # datafiles to bundle
         rthooks = []  # rthooks if needed
 
+
+        # Find rthooks.
+        logger.info("Looking for run-time hooks")
+        for modnm, mod in importTracker.modules.items():
+            rthooks.extend(_findRTHook(modnm))
+
+        # Analyze rthooks. Runtime hooks has to be also analyzed.
+        # Otherwise some dependencies could be missing.
+        # Data structure in format:
+        # ('rt_hook_mod_name', '/rt/hook/file/name.py', 'PYSOURCE')
+        for hook_mod, hook_file, mod_type in rthooks:
+            logger.info("Analyzing rthook %s", hook_file)
+            importTracker.analyze_script(hook_file)
+
+
         for modnm, mod in importTracker.modules.items():
             # FIXME: why can we have a mod == None here?
             if mod is None:
                 continue
 
-            rthooks.extend(_findRTHook(modnm))  # XXX
             datas.extend(mod.datas)
 
             if isinstance(mod, PyInstaller.depend.modules.BuiltinModule):
@@ -617,10 +641,8 @@ class PYZ(Target):
         self.name = name
         if name is None:
             self.name = self.out[:-3] + 'pyz'
-        if config['useZLIB']:
-            self.level = level
-        else:
-            self.level = 0
+        # Level of zlib compression.
+        self.level = level
         if config['useCrypt'] and crypt is not None:
             self.crypt = archive.Keyfile(crypt).key
         else:
@@ -831,18 +853,15 @@ class PKG(Target):
         if name is None:
             self.name = self.out[:-3] + 'pkg'
         if self.cdict is None:
-            if config['useZLIB']:
-                self.cdict = {'EXTENSION': COMPRESSED,
-                              'DATA': COMPRESSED,
-                              'BINARY': COMPRESSED,
-                              'EXECUTABLE': COMPRESSED,
-                              'PYSOURCE': COMPRESSED,
-                              'PYMODULE': COMPRESSED}
-                if self.crypt:
-                    self.cdict['PYSOURCE'] = ENCRYPTED
-                    self.cdict['PYMODULE'] = ENCRYPTED
-            else:
-                self.cdict = {'PYSOURCE': UNCOMPRESSED}
+            self.cdict = {'EXTENSION': COMPRESSED,
+                          'DATA': COMPRESSED,
+                          'BINARY': COMPRESSED,
+                          'EXECUTABLE': COMPRESSED,
+                          'PYSOURCE': COMPRESSED,
+                          'PYMODULE': COMPRESSED}
+            if self.crypt:
+                self.cdict['PYSOURCE'] = ENCRYPTED
+                self.cdict['PYMODULE'] = ENCRYPTED
         self.__postinit__()
 
     GUTS = (('name', _check_guts_eq),
@@ -959,7 +978,6 @@ class EXE(Target):
             ('debug', _check_guts_eq),
             ('icon', _check_guts_eq),
             ('versrsrc', _check_guts_eq),
-            ('manifest', _check_guts_eq),
             ('resources', _check_guts_eq),
             ('strip', _check_guts_eq),
             ('upx', _check_guts_eq),
@@ -981,8 +999,8 @@ class EXE(Target):
         if not data:
             return True
 
-        icon, versrsrc, manifest, resources = data[3:7]
-        if (icon or versrsrc or manifest or resources) and not config['hasRsrcUpdate']:
+        icon, versrsrc, resources = data[3:6]
+        if (icon or versrsrc or resources) and not config['hasRsrcUpdate']:
             # todo: really ignore :-)
             logger.info("ignoring icon, version, manifest and resources = platform not capable")
 
@@ -1078,9 +1096,11 @@ class EXE(Target):
             shutil.copy2(self.pkg.name, self.pkgname)
         outf.close()
         os.chmod(self.name, 0755)
-        _save_data(self.out,
-                   (self.name, self.console, self.debug, self.icon,
-                    self.versrsrc, self.resources, self.strip, self.upx, self.crypt, mtime(self.name)))
+        guts = (self.name, self.console, self.debug, self.icon,
+                self.versrsrc, self.resources, self.strip, self.upx,
+                self.crypt, mtime(self.name))
+        assert len(guts) == len(self.GUTS)
+        _save_data(self.out, guts)
         for item in trash:
             os.remove(item)
         return 1
