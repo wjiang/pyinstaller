@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2007, Giovanni Bajo
+# Copyright (C) 2012, Daniel Hyams
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -16,11 +16,8 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 
-# Verify packaging of PIL.Image. Specifically, the hidden import of FixTk
-# importing tkinter is causing some problems.
+# This is a static plugin module that goes
+# with the test_app_with_plugins sample.
 
 
-from PIL.Image import fromstring
-
-
-print fromstring
+print('Static plugin imported.')

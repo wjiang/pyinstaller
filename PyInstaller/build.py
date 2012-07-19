@@ -23,15 +23,13 @@ import sys
 import os
 import shutil
 import pprint
-import time
 import py_compile
 import imp
 import tempfile
 import UserList
 import bindepend
-import traceback
 
-from PyInstaller.loader import archive, carchive, iu
+from PyInstaller.loader import archive, carchive
 
 import PyInstaller.depend.imptracker
 import PyInstaller.depend.modules
@@ -233,7 +231,7 @@ def _check_path_overlap(path):
     Check that path does not overlap with BUILDPATH or SPECPATH (i.e.
     BUILDPATH and SPECPATH may not start with path, which could be
     caused by a faulty hand-edited specfile)
-    
+
     Raise SystemExit if there is overlap, return True otherwise
     """
     specerr = 0
@@ -495,7 +493,6 @@ class Analysis(Target):
         datas = []    # datafiles to bundle
         rthooks = []  # rthooks if needed
 
-
         # Find rthooks.
         logger.info("Looking for run-time hooks")
         for modnm, mod in importTracker.modules.items():
@@ -508,7 +505,6 @@ class Analysis(Target):
         for hook_mod, hook_file, mod_type in rthooks:
             logger.info("Analyzing rthook %s", hook_file)
             importTracker.analyze_script(hook_file)
-
 
         for modnm, mod in importTracker.modules.items():
             # FIXME: why can we have a mod == None here?
@@ -598,8 +594,10 @@ class Analysis(Target):
                     # lib found
                     return
 
-        # resume search using the first item in names
+        # Resume search using the first item in names.
         name = names[0]
+
+        logger.info('Looking for Python library %s', name)
 
         if is_unix:
             lib = bindepend.findLibrary(name)
@@ -612,7 +610,20 @@ class Analysis(Target):
             # However, this fails on system python, because the shared library
             # is not listed as a dependency of the binary (most probably it's
             # opened at runtime using some dlopen trickery).
-            lib = os.path.join(sys.exec_prefix, 'Python')
+            # This happens on Mac OS X when Python is compiled as Framework.
+
+            # Python compiled as Framework contains same values in sys.prefix
+            # and exec_prefix. That's why we can use just sys.prefix.
+            # In virtualenv PyInstaller is not able to find Python library.
+            # We need special care for this case.
+            if compat.is_virtualenv:
+                py_prefix = sys.real_prefix
+            else:
+                py_prefix = sys.prefix
+
+            logger.info('Looking for Python library in %s', py_prefix)
+
+            lib = os.path.join(py_prefix, name)
             if not os.path.exists(lib):
                 raise IOError("Python library not found!")
 
@@ -708,7 +719,11 @@ def checkCache(fnm, strip=0, upx=0, dist_nm=None):
         upx = 0
 
     # Load cache index
-    cachedir = os.path.join(CONFIGDIR, 'bincache%d%d' % (strip, upx))
+    # Make cachedir per Python major/minor version.
+    # This allows parallel building of executables with different
+    # Python versions as one user.
+    pyver = ('py%d%s') % (sys.version_info[0], sys.version_info[1])
+    cachedir = os.path.join(CONFIGDIR, 'bincache%d%d_%s' % (strip, upx, pyver))
     if not os.path.exists(cachedir):
         os.makedirs(cachedir)
     cacheindexfn = os.path.join(cachedir, "index.dat")
@@ -1457,6 +1472,80 @@ class Tree(Target, TOC):
         return 0
 
 
+class MERGE(object):
+    """
+    Merge repeated dependencies from other executables into the first
+    execuable. Data and binary files are then present only once and some
+    disk space is thus reduced.
+    """
+    def __init__(self, *args):
+        """
+        Repeated dependencies are then present only once in the first
+        executable in the 'args' list. Other executables depend on the
+        first one. Other executables have to extract necessary files
+        from the first executable.
+
+        args  dependencies in a list of (Analysis, id, filename) tuples.
+              Replace id with the correct filename.
+        """
+        # The first Analysis object with all dependencies.
+        # Any item from the first executable cannot be removed.
+        self._main = None
+
+        self._dependencies = {}
+
+        self._id_to_path = {}
+        for _, i, p in args:
+            self._id_to_path[i] = p
+
+        # Get the longest common path
+        self._common_prefix = os.path.dirname(os.path.commonprefix([os.path.abspath(a.scripts[-1][1]) for a, _, _ in args]))
+        if self._common_prefix[-1] != os.sep:
+            self._common_prefix += os.sep
+        logger.info("Common prefix: %s", self._common_prefix)
+
+        self._merge_dependencies(args)
+
+    def _merge_dependencies(self, args):
+        """
+        Filter shared dependencies to be only in first executable.
+        """
+        for analysis, _, _ in args:
+            path = os.path.abspath(analysis.scripts[-1][1]).replace(self._common_prefix, "", 1)
+            path = os.path.splitext(path)[0]
+            if path in self._id_to_path:
+                path = self._id_to_path[path]
+            self._set_dependencies(analysis, path)
+
+    def _set_dependencies(self, analysis, path):
+        """
+        Syncronize the Analysis result with the needed dependencies.
+        """
+        for toc in (analysis.binaries, analysis.datas):
+            for i, tpl in enumerate(toc):
+                if not tpl[1] in self._dependencies.keys():
+                    logger.debug("Adding dependency %s located in %s" % (tpl[1], path))
+                    self._dependencies[tpl[1]] = path
+                else:
+                    dep_path = self._get_relative_path(path, self._dependencies[tpl[1]])
+                    logger.debug("Referencing %s to be a dependecy for %s, located in %s" % (tpl[1], path, dep_path))
+                    analysis.dependencies.append((":".join((dep_path, tpl[0])), tpl[1], "DEPENDENCY"))
+                    toc[i] = (None, None, None)
+            # Clean the list
+            toc[:] = [tpl for tpl in toc if tpl != (None, None, None)]
+
+    # TODO move this function to PyInstaller.compat module (probably improve
+    #      function compat.relpath()
+    def _get_relative_path(self, startpath, topath):
+        start = startpath.split(os.sep)[:-1]
+        start = ['..'] * len(start)
+        if start:
+            start.append(topath)
+            return os.sep.join(start)
+        else:
+            return topath
+
+
 def TkTree():
     raise SystemExit('TkTree has been removed in PyInstaller 2.0. '
                      'Please update your spec-file. See '
@@ -1491,60 +1580,6 @@ def build(spec, buildpath):
         os.makedirs(BUILDPATH)
     # Executing the specfile (it's a valid python file)
     execfile(spec)
-
-
-def get_relative_path(startpath, topath):
-    start = startpath.split(os.sep)[:-1]
-    start = ['..'] * len(start)
-    if start:
-        start.append(topath)
-        return os.sep.join(start)
-    else:
-        return topath
-
-
-def set_dependencies(analysis, dependencies, path):
-    """
-    Syncronize the Analysis result with the needed dependencies.
-    """
-
-    for toc in (analysis.binaries, analysis.datas):
-        for i, tpl in enumerate(toc):
-            if not tpl[1] in dependencies.keys():
-                logger.info("Adding dependency %s located in %s" % (tpl[1], path))
-                dependencies[tpl[1]] = path
-            else:
-                dep_path = get_relative_path(path, dependencies[tpl[1]])
-                logger.info("Referencing %s to be a dependecy for %s, located in %s" % (tpl[1], path, dep_path))
-                analysis.dependencies.append((":".join((dep_path, tpl[0])), tpl[1], "DEPENDENCY"))
-                toc[i] = (None, None, None)
-        # Clean the list
-        toc[:] = [tpl for tpl in toc if tpl != (None, None, None)]
-
-
-def MERGE(*args):
-    """
-    Wipe repeated dependencies from a list of (Analysis, id, filename) tuples,
-    supplied as argument. Replace id with the correct filename.
-    """
-
-    # Get the longest common path
-    common_prefix = os.path.dirname(os.path.commonprefix([os.path.abspath(a.scripts[-1][1]) for a, _, _ in args]))
-    if common_prefix[-1] != os.sep:
-        common_prefix += os.sep
-    logger.info("Common prefix: %s", common_prefix)
-    # Adjust dependencies for each Analysis object; the first Analysis in the
-    # list will include all dependencies.
-    id_to_path = {}
-    for _, i, p in args:
-        id_to_path[i] = p
-    dependencies = {}
-    for analysis, _, _ in args:
-        path = os.path.abspath(analysis.scripts[-1][1]).replace(common_prefix, "", 1)
-        path = os.path.splitext(path)[0]
-        if path in id_to_path:
-            path = id_to_path[path]
-        set_dependencies(analysis, dependencies, path)
 
 
 def __add_options(parser):

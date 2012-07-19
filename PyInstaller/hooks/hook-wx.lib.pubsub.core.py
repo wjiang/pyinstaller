@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2007, Giovanni Bajo
+# Copyright (C) 2012, Daniel Hyams
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -16,11 +16,21 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 
-# Verify packaging of PIL.Image. Specifically, the hidden import of FixTk
-# importing tkinter is causing some problems.
+import os
+import PyInstaller.hooks.hookutils
+
+from PyInstaller.hooks.hookutils import logger
 
 
-from PIL.Image import fromstring
+def hook(mod):
+    pth = str(mod.__path__[0])
+    if os.path.isdir(pth):
+        # If the user imported setuparg1, this is detected
+        # by the hook-wx.lib.pubsub.setuparg1.py hook. That
+        # hook sets PyInstaller.hooks.hookutils.wxpubsub
+        # to "arg1", and we set the appropriate path here.
+        protocol = getattr(PyInstaller.hooks.hookutils, 'wxpubsub', 'kwargs')
+        logger.info('wx.lib.pubsub: Adding %s protocol path' % protocol)
+        mod.__path__.append(os.path.normpath(os.path.join(pth, protocol)))
 
-
-print fromstring
+    return mod
