@@ -107,8 +107,6 @@
     '_strptime',
     'gzip',
     'encodings\.mac_greek',
-    'iu',
-    'archive',
     '_pyi_bootstrap',
     'multipackage5_B',
 ]

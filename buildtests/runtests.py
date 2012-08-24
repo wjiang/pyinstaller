@@ -24,6 +24,7 @@
 # by this program but be recognizable by any one as a dependency of that
 # particular test.
 
+
 import glob
 import optparse
 import os
@@ -31,20 +32,22 @@ import re
 import shutil
 import sys
 
+
 try:
     import PyInstaller
 except ImportError:
     # if importing PyInstaller fails, try to load from parent
-    # directory to support running without installation
+    # directory to support running without installation.
     import imp
+    # Prevent running as superuser (root).
     if not hasattr(os, "getuid") or os.getuid() != 0:
         imp.load_module('PyInstaller', *imp.find_module('PyInstaller',
             [os.path.dirname(os.path.dirname(os.path.abspath(__file__)))]))
 
 
 from PyInstaller import HOMEPATH
-from PyInstaller import is_py23, is_py24, is_py25, is_py26, is_win, is_darwin
 from PyInstaller import compat
+from PyInstaller.compat import is_py25, is_py26, is_win, is_darwin
 from PyInstaller.lib import unittest2 as unittest
 from PyInstaller.lib import junitxml
 from PyInstaller.utils import misc
@@ -90,7 +93,6 @@ class SkipChecker(object):
         depend = MiscDependencies()
         # Required Python or OS version for some tests.
         self.MIN_VERSION_OR_OS = {
-            'basic/test_time': is_py23,
             'basic/test_celementtree': is_py25,
             'basic/test_email': is_py25,
             # On Mac DYLD_LIBRARY_PATH is not used.
@@ -101,6 +103,13 @@ class SkipChecker(object):
             'import/test_relative_import2': is_py26,
             'import/test_relative_import3': is_py25,
             'libraries/test_enchant': is_win,
+            # docutils, a sphinx dependency, fails in
+            # docutils.utils.__init__.py, function decode_path, where
+            # sys.getfilesystemencoding() returns None when frozen.
+            # Docutils doesn't expect this and throws an assertion.
+            # Untested on Mac, but this shouldn't be a problem, since
+            # Macs return 'utf-8'.
+            'libraries/test_sphinx': is_win or is_darwin,
             }
         # Required Python modules for some tests.
         self.MODULES = {
@@ -118,12 +127,14 @@ class SkipChecker(object):
             'libraries/test_pycrypto': ['Crypto'],
             'libraries/test_pyodbc': ['pyodbc'],
             'libraries/test_pyttsx': ['pyttsx'],
+            'libraries/test_pytz': ['pytz'],
             'libraries/test_sqlalchemy': ['sqlalchemy', 'MySQLdb', 'psycopg2'],
             'libraries/test_usb': ['ctypes', 'usb'],
             'libraries/test_wx': ['wx'],
             'libraries/test_wx_pubsub': ['wx'],
             'libraries/test_wx_pubsub_arg1': ['wx'],
             'libraries/test_wx_pubsub_kwargs': ['wx'],
+            'libraries/test_sphinx': ['sphinx', 'docutils', 'jinja2', 'uuid'],
             'import/test_c_extension': ['simplejson'],
             'import/test_ctypes_cdll_c': ['ctypes'],
             'import/test_ctypes_cdll_c2': ['ctypes'],
@@ -160,7 +171,7 @@ class SkipChecker(object):
             for mod_name in self.MODULES[test_name]:
                 # STDOUT and STDERR are discarded (devnull) to hide
                 # import exceptions.
-                trash = open(compat.devnull)
+                trash = open(os.devnull)
                 retcode = compat.exec_python_rc('-c', "import %s" % mod_name,
                         stdout=trash, stderr=trash)
                 trash.close()
@@ -205,17 +216,22 @@ NO_SPEC_FILE = [
     'basic/test_absolute_python_path',
     'basic/test_email',
     'basic/test_email_oldstyle',
+    'basic/test_module__file__attribute',
     'basic/test_onefile_multiprocess',
+    'basic/test_onefile_module__file__attribute',
     'basic/test_python_home',
     'import/test_c_extension',
     'import/test_onefile_c_extension',
     'import/test_onefile_zipimport',
     'import/test_onefile_zipimport2',
     'libraries/test_enchant',
+    'libraries/test_idlelib',
     'libraries/test_onefile_tkinter',
     'libraries/test_sqlalchemy',
     'libraries/test_pyodbc',
     'libraries/test_pyttsx',
+    'libraries/test_sphinx',
+    'libraries/test_pytz',
     'libraries/test_usb',
     'libraries/test_wx_pubsub',
     'libraries/test_wx_pubsub_kwargs',
@@ -545,9 +561,17 @@ def clean():
     */*.dylib
     """.split()
 
+    # By some directories we do not need to clean files.
+    # E.g. for unit tests.
+    IGNORE_DIRS = set([
+        'unit',
+    ])
+
     # Remove temporary files in all subdirectories.
     for directory in os.listdir(BASEDIR):
         if not os.path.isdir(directory):
+            continue
+        if directory in IGNORE_DIRS:
             continue
         for pattern in patterns:
             file_list = glob.glob(os.path.join(directory, pattern))
@@ -621,16 +645,16 @@ def main():
             parser.error('Must not specify -i/--interactive-tests when passing test names.')
         suite = unittest.TestSuite()
         for arg in args:
-           test_list = glob.glob(arg)
-           if not test_list: 
-               test_list = [arg]
-           else:
-               test_list = [x for x in test_list if os.path.splitext(x)[1] == ".py"]
-           for t in test_list: 
-              test_dir = os.path.dirname(t)
-              test_script = os.path.basename(os.path.splitext(t)[0])
-              suite.addTest(GenericTestCase(test_dir, test_script))
-              print 'Running test:  %s' % (test_dir + '/' + test_script)
+            test_list = glob.glob(arg)
+            if not test_list:
+                test_list = [arg]
+            else:
+                test_list = [x for x in test_list if os.path.splitext(x)[1] == ".py"]
+            for t in test_list:
+                test_dir = os.path.dirname(t)
+                test_script = os.path.basename(os.path.splitext(t)[0])
+                suite.addTest(GenericTestCase(test_dir, test_script))
+                print 'Running test:  %s' % (test_dir + '/' + test_script)
 
     # Run all tests or all interactive tests.
     else:

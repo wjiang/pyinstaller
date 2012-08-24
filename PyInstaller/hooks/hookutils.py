@@ -1,11 +1,10 @@
-#!/usr/bin/env python
 
 import glob
 import os
 import sys
 import PyInstaller
 import PyInstaller.compat as compat
-from PyInstaller.compat import is_darwin, set
+from PyInstaller.compat import is_darwin
 from PyInstaller.utils import misc
 
 import PyInstaller.log as logging
@@ -111,7 +110,6 @@ diff.discard('%(modname)s')
 print list(diff)
 """ % {'modname': modname}
     module_imports = eval_statement(statement)
-    
 
     if not module_imports:
         logger.error('Cannot find imports for module %s' % modname)
@@ -184,7 +182,6 @@ def qt4_menu_nib_dir():
     ]
 
     # Qt4 from Homebrew compiled as framework
-    import glob
     globpath = '/usr/local/Cellar/qt/4.*/lib/QtGui.framework/Versions/4/Resources'
     qt_homebrew_dirs = glob.glob(globpath)
     dirs += qt_homebrew_dirs
@@ -279,3 +276,167 @@ def opengl_arrays_modules():
         modules.append('OpenGL.arrays.' + mod)
 
     return modules
+
+
+def remove_prefix(string, prefix):
+    """
+    This funtion removes the given prefix from a string, if the string does
+    indeed begin with the prefix; otherwise, it returns the string
+    unmodified.
+    """
+    if string.startswith(prefix):
+        return string[len(prefix):]
+    else:
+        return string
+
+
+def remove_suffix(string, suffix):
+    """
+    This funtion removes the given suffix from a string, if the string
+    does indeed end with the prefix; otherwise, it returns the string
+    unmodified.
+    """
+    # Special case: if suffix is empty, string[:0] returns ''. So, test
+    # for a non-empty suffix.
+    if suffix and string.endswith(suffix):
+        return string[:-len(suffix)]
+    else:
+        return string
+
+
+def remove_file_extension(filename):
+    """
+    This funtion returns filename without its extension.
+    """
+    return os.path.splitext(filename)[0]
+
+
+def get_module_file_attribute(package):
+    """
+    Given a pacage name, return the value of __file__ attribute.
+
+    In PyInstaller process we cannot import directly analyzed modules.
+    """
+    # Statement to return __file__ attribute of a package.
+    __file__statement = """
+# Fun Python behavior: __import__('mod.submod') returns mod,
+# where as __import__('mod.submod', fromlist = [a non-empty list])
+# returns mod.submod. See the docs on `__import__
+# <http://docs.python.org/library/functions.html#__import__>`_.
+# Keyworded arguments in __import__ function are available
+# in Python 2.5+. Compatibility with Python 2.4 is preserved.
+_fromlist = ['']
+_globals = {}
+_locals = {}
+package = __import__('%s', _globals, _locals, _fromlist)
+print package.__file__
+"""
+    return exec_statement(__file__statement % package)
+
+
+def get_package_paths(package):
+    """
+    Given a package, return the path to packages stored on this machine
+    and also returns the path to this particular package. For example,
+    if pkg.subpkg lives in /abs/path/to/python/libs, then this function
+    returns (/abs/path/to/python/libs,
+             /abs/path/to/python/libs/pkg/subpkg).
+    """
+    # A package must have a path -- check for this, in case the package
+    # parameter is actually a module.
+    is_pkg_statement = 'import %s as p; print hasattr(p, "__path__")'
+    is_package = eval_statement(is_pkg_statement % package)
+    assert is_package
+
+    file_attr = get_module_file_attribute(package)
+
+    # package.__file__ = /abs/path/to/package/subpackage/__init__.py.
+    # Search for Python files in /abs/path/to/package/subpackage; pkg_dir
+    # stores this path.
+    pkg_dir = os.path.dirname(file_attr)
+    # When found, remove /abs/path/to/ from the filename; mod_base stores
+    # this path to be removed.
+    pkg_base = remove_suffix(pkg_dir, package.replace('.', os.sep))
+
+    return pkg_base, pkg_dir
+
+
+# All these extension represent Python modules or extension modules
+PY_EXECUTABLE_EXTENSIONS = set(['.py', '.pyc', '.pyd', '.pyo', '.so'])
+
+
+def collect_submodules(package):
+    """
+    The following two functions were originally written by Ryan Welsh
+    (welchr AT umich.edu).
+
+    This produces a list of strings which specify all the modules in
+    package.  Its results can be directly assigned to ``hiddenimports``
+    in a hook script; see, for example, hook-sphinx.py. The
+    package parameter must be a string which names the package.
+
+    This function does not work on zipped Python eggs.
+
+    This function is used only for hook scripts, but not by the body of
+    PyInstaller.
+    """
+    pkg_base, pkg_dir = get_package_paths(package)
+    # Walk through all file in the given package, looking for submodules.
+    mods = set()
+    for dirpath, dirnames, filenames in os.walk(pkg_dir):
+        # Change from OS separators to a dotted Python module path,
+        # removing the path up to the package's name. For example,
+        # '/abs/path/to/desired_package/sub_package' becomes
+        # 'desired_package.sub_package'
+        mod_path = remove_prefix(dirpath, pkg_base).replace(os.sep, ".")
+
+        # If this subdirectory is a package, add it and all other .py
+        # files in this subdirectory to the list of modules.
+        if '__init__.py' in filenames:
+            mods.add(mod_path)
+            for f in filenames:
+                extension = os.path.splitext(f)[1]
+                if ((remove_file_extension(f) != '__init__') and
+                    extension in PY_EXECUTABLE_EXTENSIONS):
+                    mods.add(mod_path + "." + remove_file_extension(f))
+        else:
+        # If not, nothing here is part of the package; don't visit any of
+        # these subdirs.
+            del dirnames[:]
+
+    return list(mods)
+
+
+# These extensions represent Python executables and should therefore be
+# ignored.
+PY_IGNORE_EXTENSIONS = set(['.py', '.pyc', '.pyd', '.pyo', '.so', 'dylib'])
+
+
+def collect_data_files(package):
+    """
+    This routine produces a list of (source, dest) non-Python (i.e. data)
+    files which reside in package. Its results can be directly assigned to
+    ``datas`` in a hook script; see, for example, hook-sphinx.py. The
+    package parameter must be a string which names the package.
+
+    This function does not work on zipped Python eggs.
+
+    This function is used only for hook scripts, but not by the body of
+    PyInstaller.
+    """
+    pkg_base, pkg_dir = get_package_paths(package)
+    # Walk through all file in the given package, looking for data files.
+    datas = []
+    for dirpath, dirnames, files in os.walk(pkg_dir):
+        for f in files:
+            extension = os.path.splitext(f)[1]
+            if not extension in PY_IGNORE_EXTENSIONS:
+                # Produce the tuple
+                # (/abs/path/to/source/mod/submod/file.dat,
+                #  mod/submod/file.dat)
+                source = os.path.join(dirpath, f)
+                dest = remove_prefix(dirpath,
+                                     os.path.dirname(pkg_base) + os.sep)
+                datas.append((source, dest))
+
+    return datas

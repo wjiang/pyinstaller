@@ -43,7 +43,7 @@ except ImportError:
             [os.path.dirname(os.path.dirname(os.path.abspath(__file__)))]))
 
 
-from PyInstaller.compat import is_py24, is_py25, is_py26
+from PyInstaller.compat import is_py25, is_py26
 
 
 PYVER = '.'.join([str(x) for x in sys.version_info[0:2]])
@@ -59,14 +59,18 @@ def py_arch():
 
 
 _PACKAGES = {
+    'docutils': ['docutils'],
+    'jinja2': ['jinja2'],
+    'sphinx': ['sphinx'],
+    'pytz': ['pytz'],
     # 'modulename': 'pypi_name_or_url_or_path'
     'MySQLdb': ['MySQL-python-*%s-py%s.exe' % (py_arch(), PYVER)],
     'numpy': ['numpy-unoptimized-*%s-py%s.exe' % (py_arch(), PYVER)],
     'PIL': ['PIL-*%s-py%s.exe' % (py_arch(), PYVER)],
     'psycopg2': ['psycopg2-*%s-py%s.exe' % (py_arch(), PYVER)],
-    'pycrypto': ['pycrypto'],
+    #'pycrypto': ['pycrypto'],
     'pyodbc': ['pyodbc'],
-    'simplejson': ['simplejson'],
+    #'simplejson': ['simplejson'],
     'sqlalchemy': ['SQLAlchemy-*%s-py%s.exe' % (py_arch(), PYVER)],
     'wx': ['wxPython-common-*%s-py%s.exe' % (py_arch(), PYVER),
         'wxPython-2*%s-py%s.exe' % (py_arch(), PYVER)],
@@ -80,7 +84,6 @@ _PY_VERSION = {
     'PIL': is_py26,
     'psycopg2': is_py26,
     'simplejson': is_py25,
-    'sqlalchemy': is_py24,
     # Installers are available only for Python 2.6/2.7.
     'wx': is_py26,
 }
@@ -126,7 +129,10 @@ def main():
                 # because easy_install tries to install the same module from
                 # PYPI from source code and if fails because of C code that
                 # that needs to be compiled.
-                easy_install.main(['--no-deps', '--always-unzip', f])
+                try:
+                    easy_install.main(['--no-deps', '--always-unzip', f])
+                except Exception:
+                    print '  %s installation failed' % k
 
 
 if __name__ == '__main__':
