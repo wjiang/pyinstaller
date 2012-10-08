@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-#
-# Build packages using spec files
 #
 # Copyright (C) 2005, Giovanni Bajo
 # Based on previous work under copyright (c) 1999, 2002 McMillan Enterprises, Inc.
@@ -19,6 +16,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
+
+# Build packages using spec files.
+
+
 import sys
 import os
 import shutil
@@ -29,17 +30,16 @@ import tempfile
 import UserList
 import bindepend
 
-from PyInstaller.loader import archive, carchive
+from PyInstaller.loader import pyi_archive, pyi_carchive
 
 import PyInstaller.depend.imptracker
 import PyInstaller.depend.modules
 
 from PyInstaller import HOMEPATH, CONFIGDIR, PLATFORM
-from PyInstaller import is_win, is_unix, is_aix, is_darwin, is_cygwin
-from PyInstaller import is_py23, is_py24
+from PyInstaller.compat import is_win, is_unix, is_aix, is_darwin, is_cygwin
 import PyInstaller.compat as compat
 
-from PyInstaller.compat import hashlib, set
+from PyInstaller.compat import hashlib
 from PyInstaller.depend import dylib
 from PyInstaller.utils import misc
 
@@ -49,7 +49,8 @@ if is_win:
     from PyInstaller.utils import winmanifest
 
 
-logger = logging.getLogger('PyInstaller.build')
+logger = logging.getLogger(__name__)
+
 
 STRINGTYPE = type('')
 TUPLETYPE = type((None,))
@@ -86,7 +87,7 @@ def _load_data(filename):
 
 def setupUPXFlags():
     f = compat.getenv("UPX", "")
-    if is_win and is_py24:
+    if is_win:
         # Binaries built with Visual Studio 7.1 require --strip-loadconf
         # or they won't compress. Configure.py makes sure that UPX is new
         # enough to support --strip-loadconf.
@@ -275,16 +276,11 @@ def _rmtree(path):
 def check_egg(pth):
     """Check if path points to a file inside a python egg file (or to an egg
        directly)."""
-    if is_py23:
-        if os.path.altsep:
-            pth = pth.replace(os.path.altsep, os.path.sep)
-        components = pth.split(os.path.sep)
-        sep = os.path.sep
-    else:
-        components = pth.replace("\\", "/").split("/")
-        sep = "/"
-        if is_win:
-            sep = "\\"
+    if os.path.altsep:
+        pth = pth.replace(os.path.altsep, os.path.sep)
+    components = pth.split(os.path.sep)
+    sep = os.path.sep
+
     for i, name in zip(range(0, len(components)), components):
         if name.lower().endswith(".egg"):
             eggpth = sep.join(components[:i + 1])
@@ -359,9 +355,9 @@ class Analysis(Target):
         _init_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'loader')
         self.inputs = [
             os.path.join(HOMEPATH, "support", "_pyi_bootstrap.py"),
-            os.path.join(_init_code_path, 'archive.py'),
-            os.path.join(_init_code_path, 'carchive.py'),
-            os.path.join(_init_code_path, 'iu.py'),
+            os.path.join(_init_code_path, 'pyi_archive.py'),
+            os.path.join(_init_code_path, 'pyi_carchive.py'),
+            os.path.join(_init_code_path, 'pyi_iu.py'),
             ]
         for script in scripts:
             if absnormpath(script) in self._old_scripts:
@@ -655,7 +651,7 @@ class PYZ(Target):
         # Level of zlib compression.
         self.level = level
         if config['useCrypt'] and crypt is not None:
-            self.crypt = archive.Keyfile(crypt).key
+            self.crypt = pyi_archive.Keyfile(crypt).key
         else:
             self.crypt = None
         self.dependencies = compile_pycos(config['PYZ_dependencies'])
@@ -680,7 +676,7 @@ class PYZ(Target):
 
     def assemble(self):
         logger.info("building PYZ %s", os.path.basename(self.out))
-        pyz = archive.ZlibArchive(level=self.level, crypt=self.crypt)
+        pyz = pyi_archive.ZlibArchive(level=self.level, crypt=self.crypt)
         toc = self.toc - config['PYZ_dependencies']
         pyz.build(self.name, toc)
         _save_data(self.out, (self.name, self.level, self.crypt, self.toc))
@@ -929,7 +925,7 @@ class PKG(Target):
                 mytoc.append((inm, '', 0, 'o'))
             else:
                 mytoc.append((inm, fnm, self.cdict.get(typ, 0), self.xformdict.get(typ, 'b')))
-        archive = carchive.CArchive()
+        archive = pyi_carchive.CArchive()
         archive.build(self.name, mytoc)
         _save_data(self.out,
                    (self.name, self.cdict, self.toc, self.exclude_binaries,

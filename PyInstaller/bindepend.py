@@ -1,6 +1,3 @@
-#! /usr/bin/env python
-#
-# Find external dependencies of binary libraries.
 #
 # Copyright (C) 2005, Giovanni Bajo
 # Based on previous work under copyright (c) 2002 McMillan Enterprises, Inc.
@@ -19,30 +16,38 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
+
+# Find external dependencies of binary libraries.
+
+
 import os
 import sys
 import re
 from glob import glob
+
 # Required for extracting eggs.
 import zipfile
 
-from PyInstaller import is_win, is_unix, is_aix, is_cygwin, is_darwin, is_py26
+
+from PyInstaller.compat import is_win, is_unix, is_aix, is_cygwin, is_darwin, is_py26
 from PyInstaller.depend import dylib
 from PyInstaller.utils import winutils
 import PyInstaller.compat as compat
-from PyInstaller.compat import set
 
 
 import PyInstaller.log as logging
-logger = logging.getLogger('PyInstaller.build.bindepend')
+logger = logging.getLogger(__file__)
 
 seen = {}
 
 if is_win:
     if is_py26:
         try:
-            import win32api
+            # For Portable Python it is required to import pywintypes before
+            # win32api module. See for details:
+            # http://www.voidspace.org.uk/python/movpy/reference/win32ext.html#problems-with-win32api
             import pywintypes
+            import win32api
         except ImportError:
             raise SystemExit("Error: PyInstaller for Python 2.6+ on Windows "
                  "needs pywin32.\r\nPlease install from "
