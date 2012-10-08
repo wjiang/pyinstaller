@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2007, Giovanni Bajo
+# Copyright (C) 2012, Daniel Hyams
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -16,11 +16,17 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 
-# Verify packaging of PIL.Image. Specifically, the hidden import of FixTk
-# importing tkinter is causing some problems.
+from wx.lib.pubsub import setuparg1
+from wx.lib.pubsub import pub as Publisher
 
 
-from PIL.Image import fromstring
+def on_message(message):
+    print ("In the handler")
+    # Data is delivered encapsulated in message and
+    # not directly as function argument.
+    if not message.data == 762:
+        raise SystemExit('wx_pubsub_arg1 failed.')
 
 
-print fromstring
+Publisher.subscribe(on_message, 'topic.subtopic')
+Publisher.sendMessage('topic.subtopic', 762)

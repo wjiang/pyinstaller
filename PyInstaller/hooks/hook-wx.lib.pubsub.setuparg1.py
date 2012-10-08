@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2007, Giovanni Bajo
+# Copyright (C) 2012, Daniel Hyams
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -16,11 +16,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 
 
-# Verify packaging of PIL.Image. Specifically, the hidden import of FixTk
-# importing tkinter is causing some problems.
+import PyInstaller.hooks.hookutils
 
 
-from PIL.Image import fromstring
-
-
-print fromstring
+# If the user imports setuparg1, we just set an attribute
+# in PyInstaller.hooks.hookutils that allows us to later
+# find out about this.
+PyInstaller.hooks.hookutils.wxpubsub = 'arg1'

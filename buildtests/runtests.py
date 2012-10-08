@@ -22,7 +22,7 @@
 # This program will execute any file with name test*<digit>.py. If your test
 # need an aditional dependency name it test*<digit><letter>.py to be ignored
 # by this program but be recognizable by any one as a dependency of that
-# particual test.
+# particular test.
 
 import glob
 import optparse
@@ -109,23 +109,28 @@ class SkipChecker(object):
             'basic/test_nestedlaunch1': ['ctypes'],
             'basic/test_onefile_multiprocess': ['multiprocessing'],
             'libraries/test_enchant': ['enchant'],
-            'libraries/test_Image': ['Image'],
+            'libraries/test_Image': ['PIL'],
+            'libraries/test_Image2': ['PIL'],
             'libraries/test_numpy': ['numpy'],
             'libraries/test_onefile_tkinter': ['Tkinter'],
             'libraries/test_PIL': ['PIL'],
             'libraries/test_PIL2': ['PIL'],
             'libraries/test_pycrypto': ['Crypto'],
+            'libraries/test_pyodbc': ['pyodbc'],
             'libraries/test_pyttsx': ['pyttsx'],
             'libraries/test_sqlalchemy': ['sqlalchemy', 'MySQLdb', 'psycopg2'],
             'libraries/test_usb': ['ctypes', 'usb'],
             'libraries/test_wx': ['wx'],
+            'libraries/test_wx_pubsub': ['wx'],
+            'libraries/test_wx_pubsub_arg1': ['wx'],
+            'libraries/test_wx_pubsub_kwargs': ['wx'],
             'import/test_c_extension': ['simplejson'],
             'import/test_ctypes_cdll_c': ['ctypes'],
             'import/test_ctypes_cdll_c2': ['ctypes'],
             'import/test_eggs2': ['pkg_resources'],
             'import/test_onefile_c_extension': ['simplejson'],
-            'import/test_zipimport': ['pkg_resources'],
-            'import/test_zipimport2': ['pkg_resources', 'setuptools'],
+            'import/test_onefile_zipimport': ['pkg_resources'],
+            'import/test_onefile_zipimport2': ['pkg_resources', 'setuptools'],
             'interactive/test_pygame': ['pygame'],
             }
         # Other dependecies of some tests.
@@ -155,7 +160,7 @@ class SkipChecker(object):
             for mod_name in self.MODULES[test_name]:
                 # STDOUT and STDERR are discarded (devnull) to hide
                 # import exceptions.
-                trash = open(os.devnull)
+                trash = open(compat.devnull)
                 retcode = compat.exec_python_rc('-c', "import %s" % mod_name,
                         stdout=trash, stderr=trash)
                 trash.close()
@@ -204,11 +209,17 @@ NO_SPEC_FILE = [
     'basic/test_python_home',
     'import/test_c_extension',
     'import/test_onefile_c_extension',
+    'import/test_onefile_zipimport',
+    'import/test_onefile_zipimport2',
     'libraries/test_enchant',
     'libraries/test_onefile_tkinter',
     'libraries/test_sqlalchemy',
+    'libraries/test_pyodbc',
     'libraries/test_pyttsx',
     'libraries/test_usb',
+    'libraries/test_wx_pubsub',
+    'libraries/test_wx_pubsub_kwargs',
+    'libraries/test_wx_pubsub_arg1'
 ]
 
 
@@ -227,9 +238,10 @@ class BuildTestRunner(object):
         """
         Important text. Print it to console only in verbose mode.
         """
+        if self.verbose:
         # This allows to redirect stdout to junit xml report.
-        sys.stdout.write('\n' + 10 * '#' + ' ' + text + ' ' + 10 * '#' + '\n\n')
-        sys.stdout.flush()
+            sys.stdout.write('\n' + 10 * '#' + ' ' + text + ' ' + 10 * '#' + '\n\n')
+            sys.stdout.flush()
 
     def _plain_msg(self, text):
         """
@@ -308,7 +320,7 @@ class BuildTestRunner(object):
         else:
             OPTS.append('--onedir')
 
-        self._msg("BUILDING TEST" + self.test_name)
+        self._msg("BUILDING TEST " + self.test_name)
 
         # Use pyinstaller.py for building test_name.
         testfile_spec = self.test_file + '.spec'
@@ -368,6 +380,8 @@ class BuildTestRunner(object):
             fname_list = fname_list.replace('\r\n', '\n').replace('\n\r', '\n')
             fname_list = eval(fname_list)
             pattern_list = eval(open(logfn, 'rU').read())
+            # Alphabetical order of patterns.
+            pattern_list.sort()
             count = 0
             for pattern in pattern_list:
                 found = False
@@ -601,15 +615,22 @@ def main():
         clean()
         raise SystemExit()  # Exit code is 0 in this case.
 
-    # Run only single specified tests.
+    # Run only specified tests.
     if args:
         if opts.interactive_tests:
             parser.error('Must not specify -i/--interactive-tests when passing test names.')
-        test_dir = os.path.dirname(args[0])
-        test_script = os.path.basename(os.path.splitext(args[0])[0])
         suite = unittest.TestSuite()
-        suite.addTest(GenericTestCase(test_dir, test_script))
-        print 'Running single test:  %s' % (test_dir + '/' + test_script)
+        for arg in args:
+           test_list = glob.glob(arg)
+           if not test_list: 
+               test_list = [arg]
+           else:
+               test_list = [x for x in test_list if os.path.splitext(x)[1] == ".py"]
+           for t in test_list: 
+              test_dir = os.path.dirname(t)
+              test_script = os.path.basename(os.path.splitext(t)[0])
+              suite.addTest(GenericTestCase(test_dir, test_script))
+              print 'Running test:  %s' % (test_dir + '/' + test_script)
 
     # Run all tests or all interactive tests.
     else:
