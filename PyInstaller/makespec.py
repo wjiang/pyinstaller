@@ -1,23 +1,16 @@
+#-----------------------------------------------------------------------------
+# Copyright (c) 2013, PyInstaller Development Team.
 #
-# Copyright (C) 2005, Giovanni Bajo
-# Based on previous work under copyright (c) 2002 McMillan Enterprises, Inc.
+# Distributed under the terms of the GNU General Public License with exception
+# for distributing bootloader.
 #
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
 
 
-# Automatically build spec files containing a description of the project
+"""
+Automatically build spec files containing a description of the project
+"""
 
 
 import os
@@ -33,8 +26,8 @@ a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
              hookspath=%(hookspath)r,
-             excludes=%(excludes)r
-             )
+             excludes=%(excludes)r,
+             runtime_hooks=%(runtime_hooks)r)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
@@ -53,8 +46,8 @@ a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
              hookspath=%(hookspath)r,
-             excludes=%(excludes)r
-             )
+             excludes=%(excludes)r,
+             runtime_hooks=%(runtime_hooks)r)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
@@ -78,8 +71,8 @@ a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
              hookspath=%(hookspath)r,
-             excludes=%(excludes)r
-             )
+             excludes=%(excludes)r,
+             runtime_hooks=%(runtime_hooks)r)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
@@ -189,6 +182,13 @@ def __add_options(parser):
     g.add_option("--additional-hooks-dir", action="append", dest="hookspath",
                  help="additional path to search for hooks "
                       "(may be given several times)")
+    g.add_option('--runtime-hook', action='append', dest='runtime_hooks',
+            help='path to a file with custom runtime hook. Runtime hook '
+            'contains code that is bundled with the frozen executable and its code '
+            'is executed before other code or module. This is handy for any tricky '
+            'setup of the frozen code or modules. '
+            '(may be given several times)')
+
 
     g.add_option("--exclude-module", action="append", dest="excludes",
                  help="exclude the python module "
@@ -205,8 +205,6 @@ def __add_options(parser):
     g.add_option("--noupx", action="store_true", default=False,
                  help="do not use UPX even if available (works differently "
                       "between Windows and *nix)")
-    #p.add_option("-Y", "--crypt", metavar="FILE",
-    #             help="encrypt pyc/pyo files")
 
     g = parser.add_option_group('Windows and Mac OS X specific options')
     g.add_option("-c", "--console", "--nowindowed", dest="console",
@@ -252,8 +250,8 @@ def __add_options(parser):
 def main(scripts, name=None, onefile=0,
          console=True, debug=False, strip=0, noupx=0, comserver=0,
          workdir=None, pathex=[], version_file=None,
-         icon_file=None, manifest=None, resources=[], crypt=None,
-         hiddenimports=None, hookspath=None, excludes=None, **kwargs):
+         icon_file=None, manifest=None, resources=[],
+         hiddenimports=None, hookspath=None, runtime_hooks=[], excludes=None, **kwargs):
 
     if not name:
         name = os.path.splitext(os.path.basename(scripts[0]))[0]
@@ -296,6 +294,7 @@ def main(scripts, name=None, onefile=0,
          'hiddenimports': hiddenimports,
          'excludes': excludes,
          'hookspath': hookspath,
+         'runtime_hooks': runtime_hooks,  # List with custom runtime hook files.
          #'exename': '',
          'name': name,
          'distdir': repr(distdir),
@@ -303,8 +302,6 @@ def main(scripts, name=None, onefile=0,
          'debug': debug,
          'strip': strip,
          'upx': not noupx,
-         'crypt': repr(crypt),
-         'crypted': crypt is not None,
          'console': console or debug,
          'exe_options': exe_options}
 

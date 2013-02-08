@@ -25,24 +25,23 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#define _WIN32_WINNT 0x0500
-#include "utils.h"
-#include <windows.h>
-#include <commctrl.h> // InitCommonControls
-#include <signal.h>
-#include <memory.h>
-#include <string.h>
 
-char* basename (char *path)
-{
-  /* Search for the last directory separator in PATH.  */
-  char *basename = strrchr (path, '\\');
-  if (!basename) basename = strrchr (path, '/');
-  
-  /* If found, return the address of the following character,
-     or the start of the parameter passed in.  */
-  return basename ? ++basename : (char*)path;
-}
+#define _WIN32_WINNT 0x0500
+
+
+#include <windows.h>
+#include <commctrl.h>  // InitCommonControls
+#include <stdio.h>  // _fileno
+#include <io.h>  // _get_osfhandle
+#include <signal.h>  // signal
+
+
+/* PyInstaller headers. */
+#include "stb.h"
+#include "pyi_global.h"  // PATH_MAX
+#include "pyi_archive.h"
+#include "pyi_utils.h"
+
 
 static HANDLE hCtx = INVALID_HANDLE_VALUE;
 static ULONG_PTR actToken;
@@ -50,6 +49,7 @@ static ULONG_PTR actToken;
 #ifndef STATUS_SXS_EARLY_DEACTIVATION
 #define STATUS_SXS_EARLY_DEACTIVATION 0xC015000F
 #endif
+ 	
  	
 int IsXPOrLater(void)
 {
@@ -66,7 +66,7 @@ int IsXPOrLater(void)
 
 int CreateActContext(char *workpath, char *thisfile)
 {
-    char manifestpath[_MAX_PATH + 1];
+    char manifestpath[PATH_MAX + 1];
     ACTCTX ctx;
     BOOL activated;
     HANDLE k32;
@@ -79,7 +79,7 @@ int CreateActContext(char *workpath, char *thisfile)
        
     /* Setup activation context */
     strcpy(manifestpath, workpath);
-    strcat(manifestpath, basename(thisfile));
+    strcat(manifestpath, pyi_path_basename(thisfile));
     strcat(manifestpath, ".manifest");
     VS("manifestpath: %s\n", manifestpath);
     
@@ -155,7 +155,7 @@ void init_launcher(void)
 
 int get_thisfile(char *thisfile, const char *programname)
 {
-	if (!GetModuleFileNameA(NULL, thisfile, _MAX_PATH)) {
+	if (!GetModuleFileNameA(NULL, thisfile, PATH_MAX)) {
 		FATALERROR("System error - unable to load!");
 		return -1;
 	}
@@ -165,7 +165,7 @@ int get_thisfile(char *thisfile, const char *programname)
 
 int get_thisfilew(LPWSTR thisfilew)
 {
-	if (!GetModuleFileNameW(NULL, thisfilew, _MAX_PATH)) {
+	if (!GetModuleFileNameW(NULL, thisfilew, PATH_MAX)) {
 		FATALERROR("System error - unable to load!");
 		return -1;
 	}

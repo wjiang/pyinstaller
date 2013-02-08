@@ -25,11 +25,31 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#include "launch.h"
+
+
 #include <windows.h>
-#include <olectl.h>
+#include <olectl.h>  // callSimpleEntryPoint
 #include <memory.h>
+#include <stdio.h>  // FILE
 #include <string.h>
+
+
+/* 
+ * Use Sean's Tool Box -- public domain -- http://nothings.org/stb.h. 
+ */
+#define STB_DEFINE 1
+#define STB_NO_REGISTRY 1  // Disable registry functions.
+#define STB_NO_STB_STRINGS 1  // Disable config read/write functions.
+
+
+/* PyInstaller headers. */
+#include "stb.h"
+#include "pyi_global.h"
+#include "pyi_archive.h"
+#include "pyi_python.h"
+#include "pyi_pythonlib.h"
+#include "launch.h"  // callSimpleEntryPoint
+
 
 typedef int (__stdcall *__PROC__DllCanUnloadNow) (void);
 __PROC__DllCanUnloadNow Pyc_DllCanUnloadNow = NULL;
@@ -43,7 +63,7 @@ typedef void (__cdecl *__PROC__PyCom_CoUninitialize) (void);
 __PROC__PyCom_CoUninitialize PyCom_CoUninitialize = NULL;
 
 HINSTANCE gPythoncom = 0;
-char here[_MAX_PATH + 1];
+char here[PATH_MAX + 1];
 int LoadPythonCom(ARCHIVE_STATUS *status);
 void releasePythonCom(void);
 HINSTANCE gInstance;
@@ -53,27 +73,27 @@ int launch(ARCHIVE_STATUS *status, char const * archivePath, char  const * archi
 {
 	PyObject *obHandle;
 	int loadedNew = 0;
-	char pathnm[_MAX_PATH];
+	char pathnm[PATH_MAX];
 
     VS("START");
 	strcpy(pathnm, archivePath);
 	strcat(pathnm, archiveName);
     /* Set up paths */
-    if (setPaths(status, archivePath, archiveName))
+    if (pyi_arch_set_paths(status, archivePath, archiveName))
         return -1;
 	VS("Got Paths");
     /* Open the archive */
-    if (openArchive(status))
+    if (pyi_arch_open(status))
         return -1;
 	VS("Opened Archive");
     /* Load Python DLL */
-    if (attachPython(status, &loadedNew))
+    if (pyi_pylib_attach(status, &loadedNew))
         return -1;
 
 	if (loadedNew) {
 		/* Start Python with silly command line */
 		PI_PyEval_InitThreads();
-		if (startPython(status, 1, (char**)&pathnm))
+		if (pyi_pylib_start_python(status, 1, (char**)&pathnm))
 			return -1;
 		VS("Started new Python");
 		thisthread = PI_PyThreadState_Swap(NULL);
@@ -104,15 +124,15 @@ int launch(ARCHIVE_STATUS *status, char const * archivePath, char  const * archi
 	PI_PySys_SetObject("frozendllhandle", obHandle);
 	Py_XDECREF(obHandle);
     /* Import modules from archive - this is to bootstrap */
-    if (importModules(status))
+    if (pyi_pylib_import_modules(status))
         return -1;
 	VS("Imported Modules");
     /* Install zlibs - now import hooks are in place */
-    if (installZlibs(status))
+    if (pyi_pylib_install_zlibs(status))
         return -1;
 	VS("Installed Zlibs");
     /* Run scripts */
-    if (runScripts(status))
+    if (pyi_pylib_run_scripts(status))
         return -1;
 	VS("All scripts run");
     if (PI_PyErr_Occurred()) {
@@ -129,12 +149,12 @@ int launch(ARCHIVE_STATUS *status, char const * archivePath, char  const * archi
 void startUp()
 {
 	ARCHIVE_STATUS *status_list[20];
-	char thisfile[_MAX_PATH + 1];
+	char thisfile[PATH_MAX + 1];
 	char *p;
 	int len;
 	memset(status_list, 0, 20 * sizeof(ARCHIVE_STATUS *));
 	
-	if (!GetModuleFileNameA(gInstance, thisfile, _MAX_PATH)) {
+	if (!GetModuleFileNameA(gInstance, thisfile, PATH_MAX)) {
 		FATALERROR("System error - unable to load!");
 		return;
 	}
@@ -161,7 +181,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 		VS("Process Detach");
 		//if (gPythoncom)
 		//	releasePythonCom();
-		//finalizePython();
+		//pyi_pylib_finalize();
 	}
 
 	return TRUE; 
@@ -169,13 +189,13 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 
 int LoadPythonCom(ARCHIVE_STATUS *status)
 {
-	char dllpath[_MAX_PATH+1];
+	char dllpath[PATH_MAX+1];
 	VS("Loading Pythoncom");
 	// see if pythoncom is already loaded
-	sprintf(dllpath, "pythoncom%02d.dll", getPyVersion(status));
+	sprintf(dllpath, "pythoncom%02d.dll", pyi_arch_get_pyversion(status));
 	gPythoncom = GetModuleHandleA(dllpath);
 	if (gPythoncom == NULL) {
-		sprintf(dllpath, "%spythoncom%02d.dll", here, getPyVersion(status));
+		sprintf(dllpath, "%spythoncom%02d.dll", here, pyi_arch_get_pyversion(status));
 		//VS(dllpath);
 		gPythoncom = LoadLibraryExA( dllpath, // points to name of executable module 
 					   NULL, // HANDLE hFile, // reserved, must be NULL 
@@ -187,7 +207,7 @@ int LoadPythonCom(ARCHIVE_STATUS *status)
 		return -1;
 	}
 	// debugging
-	GetModuleFileNameA(gPythoncom, dllpath, _MAX_PATH);
+	GetModuleFileNameA(gPythoncom, dllpath, PATH_MAX);
 	VS(dllpath);
 
 	Pyc_DllCanUnloadNow = (__PROC__DllCanUnloadNow)GetProcAddress(gPythoncom, "DllCanUnloadNow");

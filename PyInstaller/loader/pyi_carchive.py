@@ -1,24 +1,16 @@
+#-----------------------------------------------------------------------------
+# Copyright (c) 2013, PyInstaller Development Team.
 #
-# Copyright (C) 2005, Giovanni Bajo
+# Distributed under the terms of the GNU General Public License with exception
+# for distributing bootloader.
 #
-# Based on previous work under copyright (c) 1999, 2002 McMillan Enterprises, Inc.
-#
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
 
 
-# Subclass of Archive that can be understood by a C program (see launch.c).
+"""
+Subclass of Archive that can be understood by a C program (see launch.c).
+"""
 
 
 import struct
@@ -135,22 +127,41 @@ class CArchive(pyi_archive.Archive):
 
     Easily handled from C or from Python.
     """
+    # MAGIC is usefull to verify that conversion of Python data types
+    # to C structure and back works properly.
     MAGIC = 'MEI\014\013\012\013\016'
     HDRLEN = 0
     TOCTMPLT = CTOC
-    TRLSTRUCT = '!8siiii'
-    TRLLEN = 24
     LEVEL = 9
 
-    def __init__(self, archive_path=None, start=0, length=0):
+    def __init__(self, archive_path=None, start=0, length=0, pylib_name=''):
         """
         Constructor.
 
-        PATH is path name of file (create an empty CArchive if path is None).
-        START is the seekposition within PATH.
-        LEN is the length of the CArchive (if 0, then read till EOF).
+        archive_path path name of file (create empty CArchive if path is None).
+        start        is the seekposition within PATH.
+        len          is the length of the CArchive (if 0, then read till EOF).
+        pylib_name   name of Python DLL which bootloader will use.
         """
         self.length = length
+        self._pylib_name = pylib_name
+
+        # Cookie - holds some information for the bootloader. C struct format
+        # definition. '!' at the beginning means network byte order.
+        # C struct looks like:
+        #
+        #   typedef struct _cookie {
+        #       char magic[8]; /* 'MEI\014\013\012\013\016' */
+        #       int  len;      /* len of entire package */
+        #       int  TOC;      /* pos (rel to start) of TableOfContents */
+        #       int  TOClen;   /* length of TableOfContents */
+        #       int  pyvers;   /* new in v4 */
+        #       char pylibname[64];    /* Filename of Python dynamic library. */
+        #   } COOKIE;
+        #
+        self._cookie_format = '!8siiii64s'
+        self._cookie_size = struct.calcsize(self._cookie_format)
+
         # A CArchive created from scratch starts at 0, no leading bootloader.
         self.pkg_start = 0
         super(CArchive, self).__init__(archive_path, start)
@@ -159,13 +170,16 @@ class CArchive(pyi_archive.Archive):
         """
         Finalize an archive which has been opened using _start_add_entries(),
         writing any needed padding and the table of contents.
+
+        Overrides parent method because we need to save cookie and headers.
         """
         toc_pos = self.lib.tell() - self.pkg_start
         self.save_toc(toc_pos)
-        if self.TRLLEN:
-            self.save_trailer(toc_pos)
+        self.save_cookie(toc_pos)
+
         if self.HDRLEN:
             self.update_headers(toc_pos)
+
         self.lib.close()
 
     # TODO Verify usefulness of this method.
@@ -193,6 +207,8 @@ class CArchive(pyi_archive.Archive):
         Verify that self is a valid CArchive.
 
         Magic signature is at end of the archive.
+
+        This fuction is used by ArchiveViewer.py utility.
         """
         # Magic is at EOF; if we're embedded, we need to figure where that is.
         if self.length:
@@ -201,11 +217,11 @@ class CArchive(pyi_archive.Archive):
             self.lib.seek(0, 2)
         filelen = self.lib.tell()
         if self.length:
-            self.lib.seek(self.start + self.length - self.TRLLEN, 0)
+            self.lib.seek(self.start + self.length - self._cookie_size, 0)
         else:
-            self.lib.seek(-self.TRLLEN, 2)
-        (magic, totallen, tocpos, toclen, pyvers) = struct.unpack(self.TRLSTRUCT,
-                            self.lib.read(self.TRLLEN))
+            self.lib.seek(-self._cookie_size, 2)
+        (magic, totallen, tocpos, toclen, pyvers, pylib_name) = struct.unpack(
+                self._cookie_format, self.lib.read(self._cookie_size))
         if magic != self.MAGIC:
             raise RuntimeError("%s is not a valid %s archive file" %
                     (self.path, self.__class__.__name__))
@@ -214,6 +230,9 @@ class CArchive(pyi_archive.Archive):
             if totallen != self.length or self.pkg_start != self.start:
                 raise RuntimeError('Problem with embedded archive in %s' %
                         self.path)
+        # Verify presence of Python library name.
+        if not pylib_name:
+            raise RuntimeError('Python library filename not defined in archive.')
         self.tocpos, self.toclen = tocpos, toclen
 
     def loadtoc(self):
@@ -245,12 +264,8 @@ class CArchive(pyi_archive.Archive):
 
         self.lib.seek(self.pkg_start + dpos)
         rslt = self.lib.read(dlen)
-        if flag == 2:
-            import AES
-            key = rslt[:32]
-            # Note: keep this in sync with bootloader's code.
-            rslt = AES.new(key, AES.MODE_CFB, "\0" * AES.block_size).decrypt(rslt[32:])
-        if flag == 1 or flag == 2:
+
+        if flag == 1:
             rslt = zlib.decompress(rslt)
         if typcd == 'M':
             return (1, rslt)
@@ -303,20 +318,15 @@ class CArchive(pyi_archive.Archive):
             raise
         ulen = len(s)
         assert flag in range(3)
-        if flag == 1 or flag == 2:
+        if flag == 1:
             s = zlib.compress(s, self.LEVEL)
-        if flag == 2:
-            global AES
-            import AES
-            import Crypt
-            key = Crypt.gen_random_key(32)
-            # Note: keep this in sync with bootloader's code
-            s = key + AES.new(key, AES.MODE_CFB, "\0" * AES.block_size).encrypt(s)
+
         dlen = len(s)
         where = self.lib.tell()
         if typcd == 'm':
             if pathnm.find('.__init__.py') > -1:
                 typcd = 'M'
+
         self.toc.add(where, dlen, ulen, flag, typcd, nm)
         self.lib.write(s)
 
@@ -329,22 +339,26 @@ class CArchive(pyi_archive.Archive):
         self.toclen = len(tocstr)
         self.lib.write(tocstr)
 
-    def save_trailer(self, tocpos):
+    def save_cookie(self, tocpos):
         """
-        Save the trailer to disk.
+        Save the cookie for the bootlader to disk.
 
-        CArchives can be opened from the end - the trailer points
+        CArchives can be opened from the end - the cookie points
         back to the start.
         """
-        totallen = tocpos + self.toclen + self.TRLLEN
+        totallen = tocpos + self.toclen + self._cookie_size
         pyvers = sys.version_info[0] * 10 + sys.version_info[1]
-        trl = struct.pack(self.TRLSTRUCT, self.MAGIC, totallen,
-                          tocpos, self.toclen, pyvers)
-        self.lib.write(trl)
+        # Before saving cookie we need to convert it to corresponding
+        # C representation.
+        cookie = struct.pack(self._cookie_format, self.MAGIC, totallen,
+                tocpos, self.toclen, pyvers, self._pylib_name)
+        self.lib.write(cookie)
 
     def openEmbedded(self, name):
         """
         Open a CArchive of name NAME embedded within this CArchive.
+
+        This fuction is used by ArchiveViewer.py utility.
         """
         ndx = self.toc.find(name)
 

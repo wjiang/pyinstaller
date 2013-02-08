@@ -1,25 +1,22 @@
+#-----------------------------------------------------------------------------
+# Copyright (c) 2013, PyInstaller Development Team.
 #
-# Various classes and functions to provide some backwards-compatibility
-# with previous versions of Python from 2.3 onward.
+# Distributed under the terms of the GNU General Public License with exception
+# for distributing bootloader.
 #
-# Copyright (C) 2011, Martin Zibricky
-#
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
+
+
+"""
+Various classes and functions to provide some backwards-compatibility
+with previous versions of Python from 2.3 onward.
+"""
+
 
 import dircache  # Module removed in Python 3
 import os
+import platform
 import subprocess
 import sys
 
@@ -145,7 +142,6 @@ def architecture():
     a string ('32bit' or '64bit'). Similar to platform.architecture(),
     but with fixes for universal binaries on MacOS.
     """
-    import platform
     if is_darwin:
         # Darwin's platform.architecture() is buggy and always
         # returns "64bit" event for the 32bit version of Python's
@@ -160,7 +156,6 @@ def architecture():
 
 
 def system():
-    import platform
     # On some Windows installation (Python 2.4) platform.system() is
     # broken and incorrectly returns 'Microsoft' instead of 'Windows'.
     # http://mail.python.org/pipermail/patches/2007-June/022947.html
@@ -168,6 +163,25 @@ def system():
     if syst == 'Microsoft':
         return 'Windows'
     return syst
+
+
+def machine():
+    """
+    Return machine suffix to use in directory name when looking
+    for bootloader.
+
+    PyInstaller is reported to work even on ARM architecture. For that
+    case functions system() and architecture() are not enough. 
+    Path to bootloader has to be composed from system(), architecture()
+    and machine() like:
+        'Linux-32bit-arm'
+    """
+    mach = platform.machine()
+    if mach.startswith('arm'):
+        return 'arm'
+    else:
+        # Assume x86/x86_64 machine.
+        return None
 
 
 # Set and get environment variables does not handle unicode strings correctly

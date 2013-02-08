@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (C) 2011-2012 Martin Zibricky
+# Copyright (C) 2011-2013 Martin Zibricky
 # Copyright (C) 2011-2012 Hartmut Goebel
 # Copyright (C) 2005-2011 Giovanni Bajo
 # Based on previous work under copyright (c) 2001, 2002 McMillan Enterprises, Inc.
@@ -115,8 +115,10 @@ class SkipChecker(object):
         self.MODULES = {
             'basic/test_ctypes': ['ctypes'],
             'basic/test_module_attributes': ['xml.etree.cElementTree'],
-            'basic/test_nestedlaunch1': ['ctypes'],
+            'basic/test_multiprocess': ['multiprocessing'],
+            'basic/test_onefile_nestedlaunch1': ['ctypes'],
             'basic/test_onefile_multiprocess': ['multiprocessing'],
+            'basic/test_pkg_structures': ['pkg_resources'],
             'libraries/test_enchant': ['enchant'],
             'libraries/test_Image': ['PIL'],
             'libraries/test_Image2': ['PIL'],
@@ -128,7 +130,10 @@ class SkipChecker(object):
             'libraries/test_pyodbc': ['pyodbc'],
             'libraries/test_pyttsx': ['pyttsx'],
             'libraries/test_pytz': ['pytz'],
+            'libraries/test_scipy': ['numpy', 'scipy'],
             'libraries/test_sqlalchemy': ['sqlalchemy', 'MySQLdb', 'psycopg2'],
+            'libraries/test_twisted_qt4reactor': ['twisted', 'PyQt4'],
+            'libraries/test_twisted_reactor': ['twisted'],
             'libraries/test_usb': ['ctypes', 'usb'],
             'libraries/test_wx': ['wx'],
             'libraries/test_wx_pubsub': ['wx'],
@@ -137,12 +142,13 @@ class SkipChecker(object):
             'libraries/test_sphinx': ['sphinx', 'docutils', 'jinja2', 'uuid'],
             'import/test_c_extension': ['simplejson'],
             'import/test_ctypes_cdll_c': ['ctypes'],
-            'import/test_ctypes_cdll_c2': ['ctypes'],
             'import/test_eggs2': ['pkg_resources'],
             'import/test_onefile_c_extension': ['simplejson'],
+            'import/test_onefile_ctypes_cdll_c': ['ctypes'],
             'import/test_onefile_zipimport': ['pkg_resources'],
             'import/test_onefile_zipimport2': ['pkg_resources', 'setuptools'],
             'interactive/test_pygame': ['pygame'],
+            'interactive/test_pyqt4_multiprocessing': ['multiprocessing', 'PyQt4'],
             }
         # Other dependecies of some tests.
         self.DEPENDENCIES = {
@@ -211,32 +217,24 @@ class SkipChecker(object):
         return (True, 'Requirements met.')
 
 
-NO_SPEC_FILE = [
-    'basic/test_absolute_ld_library_path',
-    'basic/test_absolute_python_path',
-    'basic/test_email',
-    'basic/test_email_oldstyle',
-    'basic/test_module__file__attribute',
-    'basic/test_onefile_multiprocess',
-    'basic/test_onefile_module__file__attribute',
-    'basic/test_python_home',
-    'import/test_c_extension',
-    'import/test_onefile_c_extension',
-    'import/test_onefile_zipimport',
-    'import/test_onefile_zipimport2',
-    'libraries/test_enchant',
-    'libraries/test_idlelib',
-    'libraries/test_onefile_tkinter',
-    'libraries/test_sqlalchemy',
-    'libraries/test_pyodbc',
-    'libraries/test_pyttsx',
-    'libraries/test_sphinx',
-    'libraries/test_pytz',
-    'libraries/test_usb',
-    'libraries/test_wx_pubsub',
-    'libraries/test_wx_pubsub_kwargs',
-    'libraries/test_wx_pubsub_arg1'
-]
+SPEC_FILE = set([
+    'basic/test_5',  # TODO What is the purpose of this test case?
+    'basic/test_ctypes',
+    'basic/test_threading2',
+    'basic/test_onefile_pkg_resources',
+    'basic/test_pkg_structures',
+    'import/test_app_with_plugins',
+    'import/test_eggs2',
+    'import/test_hiddenimport',
+    'interactive/test_matplotlib',  # TODO .spec for this test contain win32 specific manifest code. Do we still need it?
+    'libraries/test_Image',
+    'libraries/test_PIL',
+    'multipackage/test_multipackage1',
+    'multipackage/test_multipackage2',
+    'multipackage/test_multipackage3',
+    'multipackage/test_multipackage4',
+    'multipackage/test_multipackage5',
+])
 
 
 class BuildTestRunner(object):
@@ -365,6 +363,7 @@ class BuildTestRunner(object):
         Test running of all created executables.
         """
         files = glob.glob(os.path.join('dist', self.test_file + '*'))
+        files.sort()
         retcode = 0
         for exe in files:
             exe = os.path.splitext(exe)[0]
@@ -564,6 +563,7 @@ def clean():
     # By some directories we do not need to clean files.
     # E.g. for unit tests.
     IGNORE_DIRS = set([
+        'eggs4testing',
         'unit',
     ])
 
@@ -583,12 +583,12 @@ def clean():
                         os.remove(pth)
                 except OSError, e:
                     print e
-
-    # Delete *.spec files for tests without spec file.
-    for pth in NO_SPEC_FILE:
-        pth = os.path.join(BASEDIR, pth + '.spec')
-        if os.path.exists(pth):
-            os.remove(pth)
+        # Delete *.spec files for tests without spec file.
+        for pth in glob.glob(os.path.join(directory, '*.spec')):
+            test_name = directory + '/' + os.path.splitext(os.path.basename(pth))[0]
+            if not test_name in SPEC_FILE:
+                if os.path.exists(pth):
+                    os.remove(pth)
 
 
 def run_tests(test_suite, xml_file):
@@ -650,6 +650,10 @@ def main():
                 test_list = [arg]
             else:
                 test_list = [x for x in test_list if os.path.splitext(x)[1] == ".py"]
+            # Sort tests aplhabetically. For example test
+            # basic/test_nested_launch1 depends on basic/test_nested_launch0.
+            # Otherwise it would fail.
+            test_list.sort()
             for t in test_list:
                 test_dir = os.path.dirname(t)
                 test_script = os.path.basename(os.path.splitext(t)[0])

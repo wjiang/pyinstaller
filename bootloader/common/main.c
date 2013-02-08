@@ -25,17 +25,55 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
-#include "utils.h"
-#ifndef WIN32
-#include <sys/wait.h>
-#endif
 
-// To call TransformProcessType in the child process
+
+/* 
+ * Use Sean's Tool Box -- public domain -- http://nothings.org/stb.h. 
+ * 
+ * This toolbox wraps some standard functions in a portable way and
+ * contains some additional utility fuctions.
+ * (string, file, utf8, etc.)
+ *
+ * All functions starting with 'stb_' prefix are from this toolbox.
+ * To use this toolbox just do:
+ *
+ * #include "stb.h"
+ */
+#define STB_DEFINE 1
+#define STB_NO_REGISTRY 1  // Disable registry functions.
+#define STB_NO_STB_STRINGS 1  // Disable config read/write functions.
+
+#define _CRT_SECURE_NO_WARNINGS 1
+
+
+/* To call TransformProcessType in the child process. */
 #if defined(__APPLE__) && defined(WINDOWED)
 #include <Carbon/Carbon.h>
 #endif
 
+#ifdef WIN32
+    #include <windows.h>
+    #include <wchar.h>
+#else
+    #include <limits.h>  // PATH_MAX
+#endif
+#include <stdio.h>  // FILE
+#include <stdlib.h>  // calloc
+#include <string.h>  // memset
+
+
+/* PyInstaller headers. */
+#include "stb.h"
+#include "pyi_global.h"
+#include "pyi_archive.h"
+#include "pyi_utils.h"
+#include "pyi_pythonlib.h"
+#include "utils.h"
+#include "launch.h"
+
+
 #define MAX_STATUS_LIST 20
+
 
 #if defined(WIN32) && defined(WINDOWED)
 int APIENTRY WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -46,13 +84,13 @@ int main(int argc, char* argv[])
 {
     /*  status_list[0] is reserved for the main process, the others for dependencies. */
     ARCHIVE_STATUS *status_list[MAX_STATUS_LIST];
-    char thisfile[_MAX_PATH];
+    char thisfile[PATH_MAX];
 #ifdef WIN32
-    WCHAR thisfilew[_MAX_PATH + 1];
+    wchar_t thisfilew[PATH_MAX + 1];
 #endif
-    char homepath[_MAX_PATH];
-    char archivefile[_MAX_PATH + 5];
-    char MEIPASS2[_MAX_PATH + 11] = "_MEIPASS2=";
+    char homepath[PATH_MAX];
+    char archivefile[PATH_MAX + 5];
+    char MEIPASS2[PATH_MAX + 1];
     int rc = 0;
     char *extractionpath = NULL;
 #if defined(WIN32) && defined(WINDOWED)
@@ -74,7 +112,7 @@ int main(int argc, char* argv[])
     get_archivefile(archivefile, thisfile);
     get_homepath(homepath, thisfile);
 
-    extractionpath = getenv( "_MEIPASS2" );
+    extractionpath = pyi_getenv("_MEIPASS2");
 
     /* If the Python program we are about to run invokes another PyInstaller
      * one-file program as subprocess, this subprocess must not be fooled into
@@ -105,8 +143,8 @@ int main(int argc, char* argv[])
     if (!extractionpath && !needToExtractBinaries(status_list)) {
         VS("No need to extract files to run; setting extractionpath to homepath\n");
         extractionpath = homepath;
-        strcat(MEIPASS2, homepath);
-        putenv(MEIPASS2); //Bootstrap sets sys._MEIPASS, plugins rely on it
+        strcpy(MEIPASS2, homepath);
+        pyi_setenv("_MEIPASS2", MEIPASS2); //Bootstrap sets sys._MEIPASS, plugins rely on it
     }
 #endif
     if (extractionpath) {
@@ -119,7 +157,18 @@ int main(int argc, char* argv[])
 #ifdef WIN32
             strcpy(status_list[SELF]->temppathraw, extractionpath);
 #endif
+            /*
+             * Temp path exits - set appropriate flag and change
+             * status->mainpath to point to temppath.
+             */
+            status_list[SELF]->has_temp_directory = true;
+#ifdef WIN32
+            strcpy(status_list[SELF]->mainpath, status_list[SELF]->temppathraw);
+#else
+            strcpy(status_list[SELF]->mainpath, status_list[SELF]->temppath);
+#endif
         }
+
 #if defined(__APPLE__) && defined(WINDOWED)
         ProcessSerialNumber psn = { 0, kCurrentProcess };
         OSStatus returnCode = TransformProcessType(&psn, kProcessTransformToForegroundApplication);
@@ -131,7 +180,7 @@ int main(int argc, char* argv[])
 #ifdef WIN32
         ReleaseActContext();
 #endif
-	finalizePython();
+	pyi_pylib_finalize();
     } else {
         if (extractBinaries(status_list)) {
             VS("Error extracting binaries\n");
@@ -140,8 +189,11 @@ int main(int argc, char* argv[])
 
         VS("Executing self as child with ");
         /* run the "child" process, then clean up */
-        strcat(MEIPASS2, status_list[SELF]->temppath[0] != 0 ? status_list[SELF]->temppath : homepath);
-        putenv(MEIPASS2);
+#ifdef WIN32
+        pyi_setenv("_MEIPASS2", status_list[SELF]->temppath[0] != 0 ? status_list[SELF]->temppathraw : status_list[SELF]->homepathraw);
+#else
+        pyi_setenv("_MEIPASS2", status_list[SELF]->temppath[0] != 0 ? status_list[SELF]->temppath : homepath);
+#endif
 
         if (set_environment(status_list[SELF]) == -1)
             return -1;
@@ -153,8 +205,8 @@ int main(int argc, char* argv[])
 #endif
 
         VS("Back to parent...\n");
-        if (status_list[SELF]->temppath[0] != 0)
-            clear(status_list[SELF]->temppath);
+        if (status_list[SELF]->has_temp_directory == true)
+            pyi_remove_temp_path(status_list[SELF]->temppath);
 
         for (i = SELF; status_list[i] != NULL; i++) {
             VS("Freeing status for %s\n", status_list[i]->archivename);
