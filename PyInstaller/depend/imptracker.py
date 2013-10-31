@@ -11,15 +11,17 @@
 import sys
 import os
 import glob
+import imp
+import UserDict
 
 from PyInstaller import depend, hooks
-from PyInstaller.compat import is_win, LogDict
+from PyInstaller.compat import is_win
 
 import PyInstaller.log as logging
 import PyInstaller.depend.owner
 import PyInstaller.depend.impdirector
 
-logger = logging.getLogger('PyInstaller.build.mf')
+logger = logging.getLogger(__name__)
 
 
 #=================Import Tracker============================#
@@ -52,10 +54,10 @@ class ImportTrackerModulegraph:
         if xpath:
             self.path = xpath
         self.path.extend(sys.path)
-        self.modules = LogDict()
+        self.modules = dict()
 
         if hookspath:
-            hooks.__path__.extend(hookspath)
+            hooks.__path__ = hookspath + hooks.__path__
         if excludes is None:
             self.excludes = set()
         else:
@@ -85,13 +87,37 @@ class ImportTrackerModulegraph:
 
 class ImportTracker:
     # really the equivalent of builtin import
-    def __init__(self, xpath=None, hookspath=None, excludes=None):
+    def __init__(self, xpath=None, hookspath=None, excludes=None, workpath=None):
+
+        # In debug mode a .log file is written to WORKPATH.
+        if __debug__ and workpath:
+            class LogDict(UserDict.UserDict):
+                count = 0
+                #def __init__(self, *args, workpath=''):
+                def __init__(self, *args):
+                    UserDict.UserDict.__init__(self, *args)
+                    LogDict.count += 1
+                    logfile = "logdict%s-%d.log" % (".".join(map(str, sys.version_info)),
+                                                    LogDict.count)
+                    logfile = os.path.join(workpath, logfile)
+                    self.logfile = open(logfile, "w")
+
+                def __setitem__(self, key, value):
+                    self.logfile.write("%s: %s -> %s\n" % (key, self.data.get(key), value))
+                    UserDict.UserDict.__setitem__(self, key, value)
+
+                def __delitem__(self, key):
+                    self.logfile.write("  DEL %s\n" % key)
+                    UserDict.UserDict.__delitem__(self, key)
+            self.modules = LogDict()
+        else:
+            self.modules = dict()
+
         self.path = []
         self.warnings = {}
         if xpath:
             self.path = xpath
         self.path.extend(sys.path)
-        self.modules = LogDict()
 
         # RegistryImportDirector is necessary only on Windows.
         if is_win:
@@ -107,7 +133,7 @@ class ImportTracker:
             ]
 
         if hookspath:
-            hooks.__path__.extend(hookspath)
+            hooks.__path__ = hookspath + hooks.__path__
         if excludes is None:
             self.excludes = set()
         else:
@@ -295,9 +321,9 @@ class ImportTracker:
             # this (and scan_code) are instead of doing "exec co in mod.__dict__"
             try:
                 hookmodnm = 'hook-' + fqname
-                hooks = __import__('PyInstaller.hooks', globals(), locals(), [hookmodnm])
-                hook = getattr(hooks, hookmodnm)
-            except AttributeError:
+                m = imp.find_module(hookmodnm, PyInstaller.hooks.__path__)
+                hook = imp.load_module('PyInstaller.hooks.' + hookmodnm, *m)
+            except ImportError:
                 pass
             else:
                 logger.info('Processing hook %s' % hookmodnm)
