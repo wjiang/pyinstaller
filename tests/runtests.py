@@ -120,20 +120,27 @@ class SkipChecker(object):
             'basic/test_onefile_nestedlaunch1': ['ctypes'],
             'basic/test_onefile_win32com': ['win32com'],
             'basic/test_pkg_structures': ['pkg_resources'],
+            'basic/test__win32com': ['win32com'],
 
             'libraries/test_enchant': ['enchant'],
             'libraries/test_gst': ['gst'],
             'libraries/test_Image': ['Image'], # PIL allows to use its submodules as top-level modules
             'libraries/test_Image2': ['Image'], # PIL allows to use its submodules as top-level modules
+            'libraries/test_markdown': ['markdown'],
             'libraries/test_numpy': ['numpy'],
             'libraries/test_onefile_matplotlib': ['matplotlib'],
             'libraries/test_onefile_tkinter': ['Tkinter'],
             'libraries/test_PIL': ['PIL'],
             'libraries/test_PIL2': ['PIL'],
+            'libraries/test_pycparser': ['pycparser'],
             'libraries/test_pycrypto': ['Crypto'],
+            'libraries/test_pyexcelerate': ['pyexcelerate'],
+            'libraries/test_pygments': ['pygments'],
             'libraries/test_pyodbc': ['pyodbc'],
             'libraries/test_pyttsx': ['pyttsx'],
             'libraries/test_pytz': ['pytz'],
+            'libraries/test_PyQt4-QtWebKit': ['PyQt4'],
+            'libraries/test_PyQt4-uic': ['PyQt4'],
             'libraries/test_sysconfig': ['sysconfig'],
             'libraries/test_scipy': ['numpy', 'scipy'],
             'libraries/test_sqlite3': ['sqlite3'],
@@ -146,6 +153,7 @@ class SkipChecker(object):
             'libraries/test_wx_pubsub_arg1': ['wx'],
             'libraries/test_wx_pubsub_kwargs': ['wx'],
             'libraries/test_sphinx': ['sphinx', 'docutils', 'jinja2', 'uuid'],
+            'libraries/test_zope_interface': ['zope.interface'],
 
             'import/test_c_extension': ['simplejson'],
             'import/test_ctypes_cdll_c': ['ctypes'],
@@ -328,7 +336,7 @@ class BuildTestRunner(object):
             os.chdir(os.path.dirname(prog))
             # Run executable.
             prog = os.path.join(os.curdir, os.path.basename(prog))
-            proc = subprocess.Popen([prog], stdout=subprocess.PIPE, stderr=subprocess.PIPE) 
+            proc = subprocess.Popen([prog], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # Prints stdout of subprocess continuously.
             self._msg('STDOUT %s' % self.test_name)
             while proc.poll() is None:
@@ -652,11 +660,13 @@ def run_tests(test_suite, xml_file):
         # Text from stdout/stderr should be added to failed test cases.
         result.buffer = True
         result.startTestRun()
-        test_suite.run(result)
+        ret = test_suite.run(result)
         result.stopTestRun()
         fp.close()
+
+        return ret
     else:
-        unittest.TextTestRunner(verbosity=2).run(test_suite)
+        return unittest.TextTestRunner(verbosity=2).run(test_suite)
 
 
 def main():
@@ -730,7 +740,10 @@ def main():
 
     # Run created test suite.
     clean()
-    run_tests(suite, opts.junitxml)
+
+    result = run_tests(suite, opts.junitxml)
+
+    sys.exit(int(bool(result.failures or result.errors)))
 
 
 if __name__ == '__main__':

@@ -65,6 +65,9 @@ HIDDENIMPORTS = []
 
 rthooks = {}
 
+# place where the loader modules and initialization scripts live
+_init_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'loader')
+_fake_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'fake')
 
 def _save_data(filename, data):
     dirname = os.path.dirname(filename)
@@ -258,7 +261,7 @@ def _rmtree(path):
         choice = 'y'
     elif sys.stdout.isatty():
         choice = raw_input('WARNING: The output directory "%s" and ALL ITS '
-                           'CONTENTS will be REMOVED! Continue? (y/n)' % path)
+                           'CONTENTS will be REMOVED! Continue? (y/n) ' % path)
     else:
         raise SystemExit('Error: The output directory "%s" is not empty. '
                          'Please remove all its contents or use the '
@@ -393,7 +396,6 @@ class Analysis(Target):
         sys._PYI_SETTINGS['scripts'] = scripts
 
         # Include initialization Python code in PyInstaller analysis.
-        _init_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'loader')
         self.inputs = [
             os.path.join(_init_code_path, '_pyi_bootstrap.py'),
             os.path.join(_init_code_path, 'pyi_importers.py'),
@@ -496,7 +498,6 @@ class Analysis(Target):
         from PyInstaller import hooks
 
         # Python scripts for analysis.
-        _init_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'loader')
         scripts = [
             os.path.join(_init_code_path, '_pyi_bootstrap.py'),
         ]
@@ -649,7 +650,7 @@ class Analysis(Target):
             if mod is None:
                 continue
 
-            datas.extend(mod.datas)
+            datas.extend(mod.pyinstaller_datas)
 
             if isinstance(mod, PyInstaller.depend.modules.BuiltinModule):
                 pass
@@ -657,15 +658,19 @@ class Analysis(Target):
                 binaries.append((mod.__name__, mod.__file__, 'EXTENSION'))
                 # allows hooks to specify additional dependency
                 # on other shared libraries loaded at runtime (by dlopen)
-                binaries.extend(mod.binaries)
+                binaries.extend(mod.pyinstaller_binaries)
             elif isinstance(mod, (PyInstaller.depend.modules.PkgInZipModule, PyInstaller.depend.modules.PyInZipModule)):
                 zipfiles.append(("eggs/" + os.path.basename(str(mod.owner)),
                                  str(mod.owner), 'ZIPFILE'))
+            elif isinstance(mod, PyInstaller.depend.modules.NamespaceModule):
+                pure.append((modnm,
+                             os.path.join(_fake_code_path, 'namespace', '__init__.pyc'),
+                             'PYMODULE'))
             else:
                 # mf.PyModule instances expose a list of binary
                 # dependencies, most probably shared libraries accessed
                 # via ctypes. Add them to the overall required binaries.
-                binaries.extend(mod.binaries)
+                binaries.extend(mod.pyinstaller_binaries)
                 if modnm != '__main__':
                     pure.append((modnm, mod.__file__, 'PYMODULE'))
 
@@ -676,7 +681,6 @@ class Analysis(Target):
             depmanifest.writeprettyxml()
         self._check_python_library(binaries)
         if zipfiles:
-            _init_code_path = os.path.join(HOMEPATH, 'PyInstaller', 'loader')
             scripts.insert(-1, ('_pyi_egg_install.py', os.path.join(_init_code_path, '_pyi_egg_install.py'), 'PYSOURCE'))
         # Add runtime hooks just before the last script (which is
         # the entrypoint of the application).
@@ -1452,6 +1456,8 @@ class BUNDLE(Target):
         self.strip = False
         self.upx = False
 
+        self.info_plist = kws.get('info_plist', None)
+
         for arg in args:
             if isinstance(arg, EXE):
                 self.toc.append((os.path.basename(arg.name), arg.name, arg.typ))
@@ -1525,6 +1531,11 @@ class BUNDLE(Target):
                            "LSBackgroundOnly": "1",
 
                            }
+
+        # Merge info_plist settings from spec file
+        if isinstance(self.info_plist, dict) and self.info_plist:
+            info_plist_dict = dict(info_plist_dict.items() + self.info_plist.items())
+
         info_plist = """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1588,8 +1599,8 @@ class TOC(UserList.UserList):
     def append(self, tpl):
         try:
             fn = tpl[0]
-            if tpl[2] == "BINARY":
-                # Normalize the case for binary files only (to avoid duplicates
+            if tpl[2] in ["BINARY", "DATA"]:
+                # Normalize the case for binary and data files only (to avoid duplicates
                 # for different cases under Windows). We can't do that for
                 # Python files because the import semantic (even at runtime)
                 # depends on the case.

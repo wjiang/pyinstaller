@@ -31,10 +31,12 @@ Requirements
 **Linux**
   * ldd
     - Console application to print the shared libraries required by each program
-    or shared library.
+    or shared library.  This typically can by found in the
+    distribution-package `glibc` or `libc-bin`.
 
   * objdump
     - Console application to display information from object files.
+      This typically can by found in the distribution-package `binutils`.
 
 **Solaris**
   * ldd
@@ -52,6 +54,7 @@ Requirements
     Tested with FreeBSD 9.2 amd64, with included gcc (version 4.2.1)
   * ldd
   * objdump
+
 
 License
 =======
@@ -75,6 +78,7 @@ In a nutshell, the license is GPL for the source code with the exception that:
 For updated information or clarification see our
 `FAQ`_ at the `PyInstaller`_ home page.
 
+
 How To Contribute
 =====================
 
@@ -93,6 +97,7 @@ Installing |PyInstaller|
 Beginning with version 2.1 |PyInstaller| is a Python package and
 is installed like other Python packages.
 
+
 Installing Using pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -107,6 +112,7 @@ you can download and install |PyInstaller| in one command, for example::
 and upgrade to a newer version in one command::
 
     pip install --upgrade pyinstaller
+
 
 Installing in Windows
 ------------------------
@@ -144,6 +150,7 @@ Whenever you want to use |PyInstaller|,
 Then you have a command shell window in which commands
 execute in that environment.
 
+
 Installing from the archive
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -168,6 +175,7 @@ After the |bootloader| has been created,
 you can run ``python setup.py install`` with administrator privileges
 to complete the installation.
 
+
 Verifying the installation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -191,6 +199,7 @@ the proper directory:
 
 To display the current path in Windows the command is ``echo %path%``
 and in other systems, ``echo $PATH``.
+
 
 Installed commands
 ~~~~~~~~~~~~~~~~~~~~
@@ -226,6 +235,7 @@ The equivalent of the ``pyinstaller`` command is
 The other commands are found in *pyinstaller-folder* ``/cliutils/`` 
 with obvious names (``makespec.py``, etc.)
 
+
 Overview: What |PyInstaller| Does and How It Does It
 ============================================================
 
@@ -252,6 +262,7 @@ The output of  |PyInstaller| is specific to the active operating system
 and the active version of Python. To prepare a distribution for a different
 OS, or for a dfferent version of Python,
 you run |PyInstaller| on that OS, under that version of Python.
+
 
 Analysis: Finding the Files Your Program Needs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -283,11 +294,21 @@ you must help it:
 * You can give additional import paths on the command line.
 * You can edit the ``myscript.spec`` file
   that |PyInstaller| writes the first time you run it for your script.
-  In the spec file you can tell |Pyinstaller| about code and data
-  files that are unique to your script.
+  In the spec file you can tell |Pyinstaller| about code modules
+  that are unique to your script.
 * You can write "hook" files that inform |Pyinstaller| of hidden imports.
   If you "hook" imports for a package that other users might also use,
   you can contribute your hook file to |PyInstaller|.
+
+If your program depends on access to certain data files,
+you can tell |PyInstaller| to include them in the bundle as well.
+You do this by modifying the spec file, an advanced topic that is
+covered under `Using Spec Files`_.
+In order to locate these files, your program needs to be able to 
+learn its path at run time in a way that works regardless of 
+whether or not it is running from a bundle.
+This is covered under `Accessing Data Files`_.
+
 
 Bundling to One Folder
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -325,6 +346,7 @@ in a long list of names or a big array of icons.
 Also your user can create
 a problem by accidentally dragging files out of the folder.
 
+
 Bundling to One File
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -338,6 +360,7 @@ One disadvantage is that any related files
 such as README must be distributed separately.
 Another is that the single executable is a little slower to start up than
 the executable in one folder.
+
 
 How the One-Folder Program Works
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -362,6 +385,7 @@ that all the necessary support files were included.
 
 (This is an overview.
 For more detail, see `The Bootstrap Process in Detail`_ below.)
+
 
 How the One-File Program Works
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -424,6 +448,7 @@ The |bootloader| starts Python with no target for standard output or input.
 Do this if your script has a graphical interface for user input and can properly 
 report its own diagnostics.
 
+
 Hiding the Source Code
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -484,9 +509,9 @@ or, on Windows,
 
     ``pyinstaller "C:\Documents and Settings\project\myscript.spec"``
 
+
 Options
 ~~~~~~~~~~~~~~~
-
 
 General Options
 ------------------
@@ -532,7 +557,6 @@ General Options
     The keywords, from most verbose to least, are DEBUG INFO WARN ERROR CRITICAL.
     The default is INFO.
 
-
 Options for Finding Imported Modules and Libraries
 ---------------------------------------------------
 
@@ -559,8 +583,6 @@ Options for Finding Imported Modules and Libraries
     (which are not the same as analysis-time hooks)
     are discussed under `Changing Runtime Behavior`_ below.
     This option may be given more than once.
-
-
 
 Options for the Executable Output
 ---------------------------------------
@@ -617,10 +639,12 @@ Options for Windows apps
     or from a string of XML.
 
 -i <FILE.ico>, -i <FILE.exe,ID>, --icon=<FILE.ico>, --icon=<FILE.exe,ID>
-	Add an icon to the output executable.
-	Specify an icon *FILE*.ico to use that icon.
-	Specify an existing ``.exe`` file giving
-	the *ID* to extract the icon with that ID.
+    Add an icon to the output executable. Specify an icon *FILE*.ico
+    to use that icon. Specify an existing ``.exe`` file giving the
+    *ID* to extract the icon with that ID. ImageMagick_ and the
+    ``ppmtowinicon`` program from the `netpbm package`_ are two
+    programs capable of creating Windows ``.ico`` files from other
+    formats.
 
 -r <FILE[,TYPE[,NAME[,LANGUAGE]]]>, --resource=<FILE[,TYPE[,NAME[,LANGUAGE]]]>
     Add or update a resource of the given type, name and
@@ -670,6 +694,7 @@ Its contents tell Mac OS X about your application.
 You can inspect and edit a plist  with the Property List Editor
 that is part of XCode.
 
+
 Setting a Custom Icon
 -----------------------
 
@@ -691,8 +716,12 @@ For now you can apply your own icon after the app is built in several ways:
   in the Finder, Get Info on your app;
   click the icon in the info display and paste.
 
-GraphicConverter_ is one of several applications
-that can save a JPEG or PNG image in the ``.icns`` format.
+The following programs are capable of creating ``.icns`` files from JPEG or PNG images:
+
+* GraphicConverter_ ($$)
+* makeicns_ (MIT License)
+* png2icns_ (GPL)
+
 
 Setting the Supported Document Types
 --------------------------------------
@@ -700,6 +729,7 @@ Setting the Supported Document Types
 You can also edit the ``Info.plist`` file to tell the Mac OS X
 Launcher what document types your application supports.
 Refer to the Mac OS developer documentation for these keywords.
+
 
 Getting the Opened Document Names
 ------------------------------------
@@ -722,6 +752,7 @@ OpenDocument is the only AppleEvent the |bootloader| handles.
 If you want to handle other events, or events that
 are delivered after the program has launched, you must
 set up the appropriate handlers.
+
 
 Shortening the Command
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -783,12 +814,14 @@ If UPX exists, |PyInstaller| applies it to the final executable,
 unless the ``--noupx`` option was given.
 UPX has been used with |PyInstaller| output often, usually with no problems.
 
+
 Supporting Multiple Platforms
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you distribute your application for only one combination of OS and Python,
 just install |PyInstaller| like any other package and use it in your
 normal development setup.
+
 
 Supporting Multiple Python Environments
 -----------------------------------------
@@ -814,6 +847,7 @@ Note that when using virtualenv, the path to the |PyInstaller| commands is:
 Under Windows, the pip-Win_ package installs virtualenv and makes it
 especially easy to set up different environments and switch between them.
 Under Linux and Mac OS, you switch environments at the command line.
+
 
 Supporting Multiple Operating Systems
 ---------------------------------------
@@ -912,15 +946,12 @@ Only the following command-line options have an effect when building from a spec
 Spec File Operation
 ~~~~~~~~~~~~~~~~~~~~
 
-
 After |PyInstaller| creates a spec file,
 or opens a spec file when one is given instead of a script,
 the ``pyinstaller`` command *executes the spec file as code*.
 This is important to understand: the spec file contents are
 the central part of the code executed by |PyInstaller|.
 Your bundled application is created by the execution of the spec file.
-
-
 
 The statements in a spec file create objects from classes that are defined in the 
 |PyInstaller| module ``build.py``.
@@ -981,8 +1012,8 @@ In fact, it acts as an ordered set of tuples; that is, it contains no duplicates
 (where uniqueness is based on the *name* element of each tuple).
 Within this constraint, a TOC preserves the order of tuples added to it.
 
-Besides the normal list methods (appending, indexing, etc),
-a TOC supports taking differences and intersections.
+A TOC behaves like a list object and supports the same methods (appending, indexing, etc).
+A TOC also supports taking differences and intersections like a set.
 For these operations a simple list of tuples can be used as one argument.
 This makes excluding modules quite easy.
 For example,
@@ -1024,6 +1055,7 @@ but for the normal case you need to know only three:
 +---------------+--------------------------------------+-----------------------+--------------------------------------+
 | 'OPTION'      | A Python run-time option.            | Option code           | ignored.                             |
 +---------------+--------------------------------------+-----------------------+--------------------------------------+
+
 
 The Tree Class
 ------------------
@@ -1071,38 +1103,43 @@ Each tuple in this TOC has:
 Adding Files to the Bundle
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To add files to the bundle, you insert them into the argument list of the
-``COLLECT`` object for a one-folder bundle,
+To add files to the bundle, you insert descriptions of the files
+into the argument list of the ``COLLECT`` object for a one-folder bundle,
 or to the argument list of the ``EXE`` object for a one-file bundle.
 You can add files as single TOC-style tuples,
 or you can add an entire Tree object by name.
 
-To add a README file at the top level of a one-folder bundle::
+To add a single README file at the top level of a one-folder bundle,
+add a single TOC item describing it to the argument list of COLLECT or EXE::
 
       collect = COLLECT(a.binaries +
                 [('README', '/my/project/readme', 'DATA')], ...)
 
-This adds one tuple to the ``a.binaries`` TOC. 
-However, the COLLECT class takes a variable-length list of arguments,
+This appends the README tuple to the ``a.binaries`` TOC.
+(You can use a list of one or more tuples in place of a TOC object in most cases).
+
+The COLLECT and EXE classes take a variable-length list of arguments,
 so it is possible to just append a list of one tuple to the argument list::
 
-      collect = COLLECT(a.binaries,
-                [('README', '/my/project/readme', 'DATA')], ...)
+      exe = EXE(a.scripts, a.binaries, ...
+                [('README', '/my/project/readme', 'DATA')])
 
-(You can use a list of tuples in place of a TOC object in most cases).
-
-To add a folder of files, prepare a Tree and name it to the COLLECT::
+To add a folder of files, prepare a Tree for that folder::
 
     # Include all spellcheck dictionary files, as a folder named dict
     dict_tree = Tree('../../aspell/dict', prefix = 'dict')
-    # add README to that TOC for convenience
-    dict_tree += [('README', '/my/project/readme', 'DATA')]
-    dist = COLLECT(exe, a.binaries, dict_tree)
 
-In this example, you have inserted the first four lines into a
-generated spec file.
-The fifth line is from the generated spec file but with the ``dict_tree`` 
-argument added.
+You could for convenience add single files to that Tree::
+
+    # add README to the Tree TOC for convenience
+    dict_tree += [('README', '/my/project/readme', 'DATA')]
+
+Then simply mention the Tree at any point in the argument list for COLLECT or EXE::
+
+    collect = COLLECT(dict_tree, a.binaries,...)
+
+The topic `Accessing Data Files`_ describes how to find these files at run-time.
+
 
 Giving Run-time Python Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1133,6 +1170,20 @@ For example::
               name="myapp.exe", exclude_binaries=1)
 
 In this example, you have inserted a list of two tuples into the EXE call.
+
+
+Spec File Options For Mac OS X Apps
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you want to create ``.app`` file, create an instance of ``BUNDLE``. You can specify the version number and icon file, add or overwrite default settings in Info.plist. For example, when you use PyQt5, set NSHighResolutionCapable to True to let your app also work in retina screen::
+
+    exe = EXE(pyz, a.scripts, exclude_binaries=True, name='example',
+              debug=False, strip=None, upx=True, console=False )
+    bundle = BUNDLE(exe, a.binaries, a.zipfiles, a.datas,
+                   info_plist={
+                     'NSHighResolutionCapable': 'True'
+                   },
+                   version='0.0.1', icon='example.icns', name='example.app')
 
 
 When Things Go Wrong
@@ -1226,6 +1277,7 @@ cannot see.
 Problems detected through these messages can be corrected;
 see `Listing Hidden Imports`_ below for how to do it.
 
+
 Build-Time Python Errors
 -------------------------
 
@@ -1254,6 +1306,7 @@ try setting the correct path in the environment variable
 ``LD_LIBRARY_PATH`` in Linux or
 ``DYLD_LIBRARY_PATH`` in OS X.
 
+
 Getting Debug Messages
 ----------------------
 
@@ -1271,6 +1324,7 @@ For a ``--windowed`` Mac OS app they are not displayed.
 Remember to bundle without ``--debug`` for your production version.
 Users would find the messages annoying.
 
+
 Getting Python's Verbose Imports
 --------------------------------
 
@@ -1284,6 +1338,7 @@ and not leaking out to the local installed Python.
 Python verbose and warning messages always go to standard output
 and are not visible when the ``--windowed`` option is used.
 Remember to not use this in the distributed program.
+
 
 Helping PyInstaller Find Modules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1300,6 +1355,7 @@ to list all the other places that the script might be searching for imports::
                     --paths=/path/to/otherdir myscript.py
 
 These paths will be added to the current ``sys.path`` during analysis.
+
 
 Listing Hidden Imports
 ----------------------
@@ -1326,6 +1382,7 @@ to the bundle using the ``--hidden-import=`` command option,
 by editing the spec file, or
 with a hook file (see `Using Hook Files`_ below).
 
+
 Extending a Package's ``__path__``
 ----------------------------------
 
@@ -1351,6 +1408,7 @@ way as ``win32com.anythingelse``, and ``win32com.__path__``
 knows nothing of ``../win32comext``.
 
 Once in a while, that's not enough.
+
 
 Changing Runtime Behavior
 -------------------------
@@ -1418,6 +1476,7 @@ A summary of these steps was given in the Overview
 Here is more detail to help you understand what the |bootloader|
 does and how to figure out problems.
 
+
 Bootloader
 ----------
 
@@ -1425,7 +1484,7 @@ The bootloader prepares everything for running Python code.
 It begins the setup and then reruns itself in another process.
 This approach of using two processes allows a lot of flexibility
 and is used in all bundles except one-folder mode in Windows.
-So do not be surprised if you will see your frozen app
+So do not be surprised if you will see your bundled app
 as  two processes in your system task manager.
      
 What happens during execution of bootloader:
@@ -1485,7 +1544,8 @@ Running Python code consists of several steps:
 
 4. Run the main script.
 
-Python imports in a frozen app
+
+Python imports in a bundled app
 -------------------------------------
 
 |PyInstaller| embeds compiled python code
@@ -1497,7 +1557,7 @@ the support is described in `PEP 302`_  "New Import Hooks".
  
 PyInstaller implements the PEP 302 specification for
 importing built-in modules,
-importing frozen modules (compiled python code
+importing "frozen" modules (compiled python code
 bundled with the app) and for C-extensions.
 The code can be read in ``./PyInstaller/loader/pyi_importers.py``.
  
@@ -1536,14 +1596,32 @@ in a bundled app:
 Adapting to being "frozen"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In some apps it is necessary to learn at run-time
-whether the app is running "live" (from source) or "frozen" (part of a bundle).
-For example, you might have a
-configuration file that, when running "live", is found based on a module's
+You might want to learn at run-time
+whether the app is running "live" (from source) or "frozen" (bundled).
+For example, you might have
+data files that, when running live, are found based on a module's
 ``__file__`` attribute.
 That won't work when the code is bundled.
 
-When your application needs access to a data file,
+The |PyInstaller| |bootloader| adds the name ``frozen`` to the ``sys`` module.
+So the test for "are we bundled?" is::
+
+	if getattr(sys, 'frozen', False):
+		# running in a bundle
+
+Accessing Data Files
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You can include related files in either type of distribution.
+Data files and folders of files can be included
+by editing the spec file; see `Adding Files to the Bundle`_.
+
+The |bootloader| stores the absolute path to the bundle folder in ``sys._MEIPASS``.
+For a one-folder bundle, this is the path to that folder.
+For a one-file bundle, this is the path to the ``_MEIxxxxxx`` temporary folder
+created by the |bootloader| (see `How the One-File Program Works`_).
+
+When your application needs access to a data file that is bundled with it,
 for example a configuration file or an icon image file,
 you get the path to the file with the following code::
 
@@ -1555,53 +1633,27 @@ you get the path to the file with the following code::
         basedir = sys._MEIPASS
     else:
         # we are running in a normal Python environment
-        basedir = os.path.dirname(__file__)
+        basedir = os.path.dirname(os.path.abspath(__file__))
 
-The |PyInstaller| |bootloader| adds the attribute ``frozen`` to the ``sys`` module.
-If that attribute exists, your script has been launched by the |bootloader|.
-When that is true, ``sys._MEIPASS`` (note the underscore in the name)
-contains the path to the folder containing
+This code sets ``basedir`` to the path to the folder containing
 your script and any other files or folders bundled with it.
-For one-folder mode this is the distribution folder.
-For one-file mode it is the temporary folder created by the |bootloader| .
-
 When your program was not started by the |bootloader|, the standard Python
 variable ``__file__`` is the full path to the script now executing,
 and ``os.path.dirname()`` extracts the path to the folder that contains it.
-
-
-Accessing Data Files
-~~~~~~~~~~~~~~~~~~~~~~~
-
-You can include related files in either type of distribution.
-Data files and folders of files can be included
-by editing the spec file; see `Adding Files to the Bundle`_.
+When bundled, ``sys._MEIPASS`` provides the path to bundle folder.
 
 In the one-folder distribution,
-bundled files are in the distribution folder.
-You can direct your users to these files, for example
-to see the ``README`` or edit a configuration file.
+bundled data files are in the distribution folder.
 Your code can make useful changes to files in the folder.
 
-In the one-file mode, the ``basedir`` path discovered by the code above
-is the path to a temporary folder that will be deleted.
-Your users cannot easily access any included files.
+In the one-file mode, bundled data files are packaged into the executable.
+The |bootloader| unpacks them into a temporary folder.
+The ``basedir`` path discovered by the code above
+is the path to this temporary folder.
 Any files your code creates or modifies in that folder
 are available only while the app is running.
 When it ends they will be deleted.
 
-Another way to access data files in one-file mode is to 
-refer to ``sys.executable``. 
-In an un-bundled app, that is, when running your script
-from the command line or a debugger, ``sys.executable``
-is the path to the Python interpreter.
-In a bundled app, it is the path to the bundled executable.
-The expression
-
-	``os.path.dirname(sys.executable)``
-
-gives the path of the folder containing the executable file
-that was launched to start the app.
 
 Capturing Version Data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1672,6 +1724,7 @@ produce a Version resource in binary form.
 Or you can apply the ``unicode()`` function to the object
 to reproduce the version text file.
 
+
 Inspecting Archives
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1687,6 +1740,7 @@ It gets its name from the fact that it can be manipulated easily from C
 as well as from Python.
 Both of these derive from a common base class, making it fairly easy to
 create new kinds of archives.
+
 
 ZlibArchive
 --------------
@@ -1716,6 +1770,7 @@ but if they send you a Python error trace,
 you can make sense of it.
 
 |ZlibArchiveImage|
+
 
 CArchive
 -------------
@@ -1751,6 +1806,7 @@ at the end of the archive. The executable can open itself as a binary
 file, seek to the end and 'open' the CArchive.
 
 |CArchiveImage|
+
 
 Using pyi-archive_viewer
 --------------------------
@@ -1856,6 +1912,7 @@ A script that comes later in the list and needs the same file
 will have an external reference.
 You might sequence the scripts to place the most-used scripts first in the list.
 
+
 MERGE Function
 ---------------
 
@@ -1874,6 +1931,7 @@ a list of tuples, each tuple having three elements:
 MERGE examines the Analysis objects to learn the dependencies of each script.
 It modifies the total list to avoid duplication of libraries and modules.
 As a result the packages generated will be connected.
+
 
 Example MERGE spec file
 ------------------------
@@ -1929,6 +1987,7 @@ and the members of ``sys`` and ``io``)
 in creating the Analysis
 objects and performing the ``PYZ``, ``EXE`` and ``COLLECT`` statements.
 
+
 Using Hook Files
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -1965,6 +2024,7 @@ the command could be simply
 If you successfully hook a publicly distributed module in this way,
 please send us the hook file so we can make it available to others. 
 
+
 Hooks in Detail
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -1987,10 +2047,14 @@ define one or more of the following three global names:
 
     A way to simplify adding all submodules of a package is to use::
 
-        from hookutils import collect_submodules
+        from PyInstaller.hooks.hookutils import collect_submodules
         hiddenimports = collect_submodules('package')
 
     For an example see ``hook-docutils.py`` in the hooks folder.
+
+    Note: We suggest always using the fully qualified name
+    ``PyInstaller.hooks.hookutils`` for importing hookutils. This
+    avoids some pitfalls when implementing hooks for sub-modules.
 
 ``datas``
    A list of globs of files or directories to bundle as datafiles. For
@@ -2060,6 +2124,7 @@ For most cases, these precompiled bootloaders are all you need.
 If there is no precompiled bootloader for your platform,
 or if you want to modify the |bootloader| source,
 you need to build the |bootloader|.
+
 
 Development tools
 -----------------
@@ -2131,6 +2196,7 @@ On Windows this will produce in the ``./PyInstaller/bootloader/YOUR_OS`` directo
 
 *Note:* On AIX the |bootloader| builds with gcc and is tested with gcc 4.2.0 on AIX 6.1.
 
+
 Linux Standard Base (LSB) binary
 --------------------------------
 
@@ -2199,6 +2265,7 @@ instances instead of real module objects, they are identical.
 
 Instead of an ``ImportManager``, it has an ``ImportTracker`` managing things.
 
+
 ImportTracker
 -------------
 
@@ -2210,6 +2277,7 @@ the module names that importing name would cause to appear in
 because it is the only way of answering the question "Who imports
 name?" But since it is somewhat unrealistic (very few real imports do
 not involve recursion), it deserves some explanation.
+
 
 ``analyze_one()``
 -----------------
@@ -2228,6 +2296,7 @@ return ``["B", "B.C"]`` or ``["A.B", "A.B.C"]`` depending on whether
 the import turns out to be relative or absolute. In addition,
 ImportTracker's modules dict will have Module instances for them.
 
+
 Module Classes
 --------------
 
@@ -2244,6 +2313,7 @@ executed. That top-level code can do various things so that when the
 import of ``B.C`` finally occurs, something completely different
 happens (from what a structural analysis would predict). But mf can
 handle this through its hooks mechanism.
+
 
 code scanning
 -------------
@@ -2262,6 +2332,7 @@ The code scanning also keeps track (as well as it can) of the context of an
 import. It recognizes when imports are found at the top-level, and when they
 are found inside definitions (deferred imports). Within that, it also tracks
 whether the import is inside a condition (conditional imports).
+
 
 Hooks
 -------
@@ -2287,6 +2358,7 @@ accumulate the warnings generated during the structural phase, and
 
 Note that by using a hook module, you can silence some particularly tiresome
 warnings, but not all of them.
+
 
 Cross Reference
 ---------------
@@ -2389,6 +2461,7 @@ See `Using Spec Files`_ for details.
 
 .. _iu.py:
 
+
 ``iu.py``: An *imputil* Replacement
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2407,6 +2480,7 @@ least certain kinds of import hooks.
 There is an ``ImportManager`` which provides the replacement for builtin import
 and hides all the semantic complexities of a Python import request from its
 delegates.
+
 
 ``ImportManager``
 -----------------
@@ -2427,6 +2501,7 @@ It is up to the ``ImportManager`` to decide if an import is relative or absolute
 to see if the module has already been imported; to keep ``sys.modules`` up to
 date; to handle the fromlist and return the correct module object.
 
+
 ``ImportDirector``
 ------------------
 
@@ -2436,6 +2511,7 @@ returning a module object or ``None``. As you will see, an
 examine name to see if it is dotted.
 
 To see how this works, we need to examine the ``PathImportDirector``.
+
 
 ``PathImportDirector``
 ----------------------
@@ -2449,6 +2525,7 @@ ineradicable.) ``Owners`` of the appropriate kind are created as
 needed (if all your imports are satisfied by the first two elements of
 ``sys.path``, the ``PathImportDirector``'s shadowpath will only have
 two entries).
+
 
 ``Owner``
 ---------
@@ -2473,6 +2550,7 @@ the tree covers the entire top-level import namespace.
 The rest of the import namespace is covered by treelets, each rooted in a
 package module (an ``__init__.py``).
 
+
 Packages
 --------
 
@@ -2494,6 +2572,7 @@ gets. (In a flat namespace - like most archives - it is perfectly easy
 to route the request back up the package tree to the archive
 ``Owner``, qualifying the name at each step.)
 
+
 Possibilities
 -------------
 
@@ -2513,6 +2592,7 @@ Once the new ``Owner`` class is registered with ``iu``, you can put a
 zip file on ``sys.path``. A package could even put a zip file on its
 ``__path__``.
 
+
 Compatibility
 -------------
 
@@ -2523,6 +2603,7 @@ Emulation of Python's native import is nearly exact, including the
 names recorded in ``sys.modules`` and module attributes (packages
 imported through ``iu`` have an extra attribute - ``__importsub__``).
 
+
 Performance
 -----------
 
@@ -2532,6 +2613,7 @@ front of ``sys.path`` containing the standard lib and the package
 being tested, this can be reduced to 5 to 10% slower (or, on my 1.52
 box, 10% faster!) than builtin import. A bit more can be shaved off by
 manipulating the ``ImportManager``'s metapath.
+
 
 Limitations
 -----------
@@ -2553,6 +2635,7 @@ import primitives: absolute import, relative import and
 recursive-relative import. No idea what the Python syntax for those
 should be, but ``__aimport__``, ``__rimport__`` and ``__rrimport__``
 were easy to implement.
+
 
 iu Usage
 --------
@@ -2600,7 +2683,11 @@ Here's a simple example of using ``iu`` as a builtin import replacement.
 .. |SE_exeImage| image:: images/SE_exe.png
 .. _imputil: http://docs.python.org/2.7/library/imputil.html
 .. _Modulefinder: http://docs.python.org/2.7/library/modulefinder.html
+.. _ImageMagick: http://www.imagemagick.org/script/index.php
+.. _netpbm package: http://netpbm.sourceforge.net/
 .. _GraphicConverter: http://www.lemkesoft.de/en/products/graphic-converter/
+.. _makeicns: https://bitbucket.org/mkae/makeicns
+.. _png2icns: http://icns.sourceforge.net/
 .. _Django: https://www.djangoproject.com/
 .. _marshalled: http://docs.python.org/library/marshal
 .. _`Visual Studio Express`: http://www.microsoft.com/express/
