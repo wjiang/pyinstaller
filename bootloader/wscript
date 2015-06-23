@@ -17,7 +17,12 @@ Bootloader building script.
 import os
 import platform
 import sys
-import sysconfig
+
+# Workaround for Python 2.6. 'sysconfig' is not available in Python 2.6.
+try:
+    import sysconfig
+except ImportError:
+    import distutils.sysconfig as sysconfig
 
 import Utils
 import Options
@@ -134,7 +139,7 @@ def configure(conf):
                 # Manifest file will be added in the phase of packaging python application.
                 conf.env.MSVC_MANIFEST = False
             except Exception, e:
-                print e
+                print(e)
                 Utils.pprint('RED', str(e))
                 Utils.pprint('RED', 'GCC (MinGW) or MSVC compiler not found.')
                 exit(1)
@@ -215,6 +220,12 @@ def configure(conf):
     if myplatform.startswith('sun'):
         conf.env.append_value('CCDEFINES', 'SUNOS')
 
+        if conf.env.CC_NAME == 'gcc':
+            # On Solaris using gcc the linker options for shared and static libraries
+            # are slightly different from other platforms.
+            conf.env['SHLIB_MARKER'] = '-Wl,-Bdynamic'
+            conf.env['STLIB_MARKER'] = '-Wl,-Bstatic'
+
     if myplatform.startswith('aix'):
         conf.env.append_value('CCDEFINES', 'AIX')
 
@@ -282,7 +293,7 @@ def configure(conf):
         conf.env.append_value('CCFLAGS', '/EHa')
     
     # Compile with 64bit gcc 32bit binaries or vice versa.
-    if conf.env.CC_NAME == 'gcc':
+    if conf.env.CC_NAME == 'gcc' and platform.machine() != 'sw_64':
         if myarch == '32bit' and conf.check_cc(ccflags='-m32', msg='Checking for flags -m32'):
             conf.env.append_value('CCFLAGS', '-m32')
         elif myarch == '64bit':
@@ -307,7 +318,8 @@ def configure(conf):
         else:
             conf.env.append_value('CCFLAGS', '-mmacosx-version-min=10.6')
 
-        
+    if platform.machine() == 'sw_64':
+        conf.env.append_value('CCDEFINES', '__x86_64__')
 
        
     # On linux link only with needed libraries.
@@ -494,6 +506,9 @@ def build(bld):
             if sysconfig.get_config_vars('HAVE_PTHREAD_H').pop():
                 libs.append('thr')
         elif sys.platform.startswith('aix'):
+            libs = ['dl', 'm']
+            staticlibs = ['z']
+        elif sys.platform.startswith('sun'):
             libs = ['dl', 'm']
             staticlibs = ['z']
 

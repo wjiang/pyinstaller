@@ -6,10 +6,8 @@ PyInstaller Manual
 
 :Version: |PyInstallerVersion|
 :Homepage: |Homepage|
-:Author: David Cortesi (based on structure by Giovanni Bajo & William Caban (based on Gordon McMillan's manual))
-:Contact: rasky@develer.com
-:Revision: $Rev$
-:Source URL: $HeadURL$
+:Contact: pyinstaller@googlegroups.com
+:Authors: David Cortesi, based on structure by Giovanni Bajo & William Caban, based on Gordon McMillan's manual
 :Copyright: This document has been placed in the public domain.
 
 .. contents::
@@ -29,14 +27,14 @@ Requirements
   * Mac OS X 10.4 (Tiger) or newer (Leopard, Snow Leopard, Lion, Mountain Lion).
 
 **Linux**
-  * ldd
-    - Console application to print the shared libraries required by each program
-    or shared library.  This typically can by found in the
+  * ldd:
+    Console application to print the shared libraries required by
+    each program or shared library. This typically can by found in the
     distribution-package `glibc` or `libc-bin`.
 
-  * objdump
-    - Console application to display information from object files.
-      This typically can by found in the distribution-package `binutils`.
+  * objdump:
+    Console application to display information from object files. This
+    typically can by found in the distribution-package `binutils`.
 
 **Solaris**
   * ldd
@@ -264,6 +262,12 @@ OS, or for a dfferent version of Python,
 you run |PyInstaller| on that OS, under that version of Python.
 
 
+.. Note::
+
+   Don't assume that your 64-bit based Python will generate
+   executables that work on 32-bit systems.
+
+
 Analysis: Finding the Files Your Program Needs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -360,6 +364,12 @@ One disadvantage is that any related files
 such as README must be distributed separately.
 Another is that the single executable is a little slower to start up than
 the executable in one folder.
+
+.. Note::
+
+  Before bundling your project to one file, make sure it works fine
+  when bundled to one folder. `When Things Go Wrong`_ it's *much* easier to
+  find out what actually went wrong if you bundled to one folder.
 
 
 How the One-Folder Program Works
@@ -521,158 +531,7 @@ Options
 General Options
 ------------------
 
--h, --help
-    Print a summary of the options and exit.
-
--v, --version
-    Print the version of the program as 2.\ *n*.
-
--a, --ascii
-    Do *not* include Python module ``codecs`` and other Unicode support.
-    The default is to include them if available, whether the script imports them or not.
-
---distpath=path_to_executable, -o path_to_executable
-	Specify where to put the bundled app.
-	The default is a ``dist`` folder in
-	the same folder as the first script.
-
---specpath=path_to_spec_file
-	Specify where to put the *name* `.spec` file.
-	The default is the same folder as the first script.
-
---workpath=path_to_work_files
-    Specify where to put the |PyInstaller| log and work files for this run.
-    The default path is a ``build`` folder
-    in the same folder as the first script or spec.
-
---clean
-	Tell |PyInstaller| to erase all log and work files before it starts.
-	The default is to take advantage of any work files existing in
-	the workpath from a prior run to possibly shorten the building process.
-	Use --clean to make sure all parts of the app are built fresh.
-
--y, --noconfirm
-    Replace an existing executable folder or file without warning.
-    The default is to ask for permission before deleting.
-
---log-level=keyword
-    Tell |PyInstaller| how much detail you want it to report on the
-    console as it runs.
-    For more about these messages, see `Build-time Messages`_ below.
-    The keywords, from most verbose to least, are DEBUG INFO WARN ERROR CRITICAL.
-    The default is INFO.
-
-Options for Finding Imported Modules and Libraries
----------------------------------------------------
-
--p dir_list, --paths=dir_list
-    Set the search path(s) for imported modules (like using PYTHONPATH).
-    Use this option to help |PyInstaller| to search in the right places
-    when your code modifies ``sys.path`` for imports.
-    Give one or more paths separated by ``;`` (under Windows) or ``:``
-    (all other platforms), or give the option
-    more than once to give multiple paths to search.
-
---hidden-import=modulename
-    Name an imported Python module that is not visible in your code.
-    The module will be included as if it was named in an ``import`` statement.
-    This option can be given more than once.
-
---additional-hooks-dir=hook-path
-    Additional path to search for hook files.
-    Hooks are discussed under `Using Hook Files`_ below.
-    This option may be given more than once.
-
---runtime-hook=path-to-hook-file
-    Specify a file with a custom runtime hook. Runtime hooks
-    (which are not the same as analysis-time hooks)
-    are discussed under `Changing Runtime Behavior`_ below.
-    This option may be given more than once.
-
-Options for the Executable Output
----------------------------------------
-
--n name, --name=name
-    Give a *name* for the specfile and the executable output.
-    The default is the basename of the first script.
-
--D, --onedir
-    Create a folder *name* containing an executable *name*
-    and all support files. This is the default.
-
--F, --onefile
-    Create a single executable file *name* (or *name* ``.exe`` or *name* ``.app``).
-
--c, --console, --nowindowed
-    Set up a console subsystem for standard input/output at run time.
-    This is the default for both one-file and one-folder modes.
-
--w, --windowed, --noconsole
-    On Windows and Mac OS X, do not create a console window at run time
-    for standard input/output.
-    (This option is ignored for other operating systems.)
-    On Mac OS X, this option triggers
-    the creation of an OS X application bundle.
-
--d, --debug
-    Cause the |bootloader| to issue progress messages as it initializes
-    at run time. See `Getting Debug Messages`_ below.
-
--s, --strip
-    Apply ``strip`` (symbol table stripper to reduce file size)
-    to the executable and all shared libraries.
-    Not recommended with the cygwin package on
-    Windows, which tends to render normal Win32 dlls unusable.
-
---upx-dir=upx_dir
-    Directory containing UPX. (UPX is discussed
-    under `Using UPX`_ below.)
-
---noupx
-    Do not use UPX even if available.
-
---key=key
-    The key used to encrypt Python bytecode.
-
-Options for Windows apps
---------------------------
-
---version-file=version_text_file
-    Add a Version resource to the .exe output
-    using a *version_text_file* as produced by ``pyi-grab_version``.
-    See `Capturing Version Data`_ below.
-
--m file, -m xml_string, --manifest=file, --manifest=xml_string
-    Add a manifest to the .exe output, either from a *file*
-    or from a string of XML.
-
--i <FILE.ico>, -i <FILE.exe,ID>, --icon=<FILE.ico>, --icon=<FILE.exe,ID>
-    Add an icon to the output executable. Specify an icon *FILE*.ico
-    to use that icon. Specify an existing ``.exe`` file giving the
-    *ID* to extract the icon with that ID. ImageMagick_ and the
-    ``ppmtowinicon`` program from the `netpbm package`_ are two
-    programs capable of creating Windows ``.ico`` files from other
-    formats.
-
--r <FILE[,TYPE[,NAME[,LANGUAGE]]]>, --resource=<FILE[,TYPE[,NAME[,LANGUAGE]]]>
-    Add or update a resource of the given type, name and
-    language in the output executable.
-    *FILE* can be a data file or a ``.exe`` or ``.dll``.
-    For data files, at least *TYPE* and *NAME* must be specified.
-    *LANGUAGE* defaults to 0 or may be specified as wildcard ``*`` to update all
-    resources of the given *TYPE* and *NAME*.
-    For exe/dll files, resources given by  *TYPE*, *NAME* and *LANGUAGE*
-    are added or updated; or all resources from *FILE* are added or updated
-    if *TYPE*, *NAME* and *LANGUAGE* are omitted or given as ``*``.
-    This option an be used more than once to specify more resources.
-
-Options for Mac OS X apps
----------------------------
-
--i <FILE.icns>, --icon=<FILE.icns>
-    Specify a Mac icon-set file to be applied to
-    the output *name*.app that is created when both ``--onefile``
-    and ``--windowed`` are specified.
+.. include:: _pyinstaller-options.tmp
 
 
 Building Mac OS X App Bundles
@@ -709,7 +568,6 @@ Setting a Custom Icon
 The minimal plist provided by |PyInstaller| designates the icon file for the app
 as the  ``icon-windowed.icns`` file in ``Resources``.
 This is the |PyInstaller| logo in icns format.
-Support for the ``--icon-file`` option is promised for the future.
 For now you can apply your own icon after the app is built in several ways:
 
 * Prepare another ``.icns`` file with your own graphic,
@@ -871,6 +729,13 @@ Supporting Multiple Operating Systems
 If you need to distribute your application for more than one OS,
 for example both Windows and Mac OS X, you must install |PyInstaller|
 on each platform and bundle your app separately on each.
+
+Should you share the same home directory on multiple platforms, for
+example Linux and OS X, you will need to set the PYINSTALLER_CONFIG_DIR
+environment variable to different values on each platform otherwise
+PyInstaller may cache files for one platform and use them on the other
+platform, as by default it uses a subdirectory of your home directory
+as its cache location.
 
 You can do this from a single machine using virtualization.
 The free virtualBox_ or the paid VMWare_ and Parallels_
@@ -1522,7 +1387,7 @@ Bootloader
 ----------
 
 The bootloader prepares everything for running Python code.
-It begins the setup and then reruns itself in another process.
+It begins the setup and then returns itself in another process.
 This approach of using two processes allows a lot of flexibility
 and is used in all bundles except one-folder mode in Windows.
 So do not be surprised if you will see your bundled app

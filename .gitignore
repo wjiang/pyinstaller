@@ -3,6 +3,7 @@
 \#*#
 
 *.py[co]
+__pycache__/
 /*.egg
 /*.egg-info/
 /*.egg-link
@@ -21,6 +22,9 @@
 
 # Temporary rope files
 .ropeproject
+
+# PyCharm settings
+.idea
 
 # /tests/
 /tests/build*
@@ -59,21 +63,11 @@
 /old/e2etests/common/hanoi[1-9]
 
 # /doc/
-/doc/*.1
 /doc/source/_definitions.txt
+/doc/source/_pyi*.tmp
 
-# /source/
-/source/.lock-wscript
-/source/build
-/source/waf-*
-/source/.waf-*
-
-# /source/crypto/
-/source/crypto/build
-
-# /source/linux/
-/source/linux/Makefile
-
-# /support/loader/
-/support/loader/run
-/support/loader/run_d
+# Bootloader source
+/bootloader/.lock-wscript
+/bootloader/build
+/bootloader/waf-*
+/bootloader/.waf-*

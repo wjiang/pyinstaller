@@ -42,16 +42,17 @@ things go wrong` in the manual and be sure to read the introduction to
 OPTIONS
 ========
 
--h, --help            show this help message and exit
---buildpath=BUILDPATH
-                      Buildpath (default:
-                      SPECPATH/build/pyi.TARGET_PLATFORM/SPECNAME)
--y, --noconfirm       Remove output directory (default: SPECPATH/dist)
-                      without confirmation
---upx-dir=UPX_DIR     Directory containing UPX (default: search in path).
---log-level=LOGLEVEL  Log level for Build.py (default: INFO, choose one 
-                      of DEBUG, INFO, WARN, ERROR, CRITICAL)
+.. include:: _pyi-build-options.tmp
 
+ENVIRONMENT VARIABLES
+=====================
+
+====================== ========================================================
+PYINSTALLER_CONFIG_DIR This changes the directory where PyInstaller caches some
+                       files. The default location for this is operating system
+                       dependent, but is typically a subdirectory of the home
+                       directory.
+====================== ========================================================
 
 SEE ALSO
 =============

@@ -77,7 +77,7 @@ void pyi_path_basename(char *result, char *path)
 #else
     char *base = NULL;
     base = (char *) basename(path);
-    strcpy(result, path);
+    strcpy(result, base);
 #endif
 }
 
@@ -231,7 +231,13 @@ void pyi_path_homepath(char *homepath, const char *thisfile)
 }
 
 
-// TODO What is the purpose of this function and the variable 'archivefile'?
+/*
+ * Return full path to an external PYZ-archive.
+ * The name is based on the excutable's name: path/myappname.pkg
+ *
+ * archivefile - buffer where to put path the .pkg.
+ * thisfile    - usually the executable's filename.
+ */
 void pyi_path_archivefile(char *archivefile, const char *thisfile)
 {
 	strcpy(archivefile, thisfile);

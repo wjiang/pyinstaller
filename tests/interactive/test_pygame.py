@@ -23,10 +23,9 @@ try:
     from pygame.locals import *
 
 except ImportError, err:
-    print "Error, couldn't load module. %s" % (err)
-    sys.exit(2)
+    raise SystemExit("Error, couldn't load module. %s" % err)
 
-if not pygame.mixer: print 'Warning, sound disabled'
+if not pygame.mixer: print('Warning, sound disabled')
 
 NUM_SPRITES = 10
 

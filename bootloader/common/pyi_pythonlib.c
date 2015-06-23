@@ -20,6 +20,7 @@
     #include <io.h>  // _setmode
     #include <winsock.h>  // ntohl
 #else
+    #include <dlfcn.h>  // dlerror
     #include <limits.h>  // PATH_MAX
     #include <netinet/in.h>  // ntohl
 #endif
@@ -31,6 +32,7 @@
 /* PyInstaller headers. */
 #include "stb.h"
 #include "pyi_global.h"
+#include "pyi_path.h"
 #include "pyi_archive.h"
 #include "pyi_utils.h"
 #include "pyi_python.h"
@@ -172,7 +174,8 @@ static int pyi_pylib_set_runtime_opts(ARCHIVE_STATUS *status)
 	return 0;
 }
 
-
+/* Required for Py_SetProgramName */
+char _program_name[PATH_MAX+1];
 /*
  * Start python - return 0 on success
  */
@@ -211,7 +214,8 @@ int pyi_pylib_start_python(ARCHIVE_STATUS *status, int argc, char *argv[])
 	*PI_Py_NoSiteFlag = 1;	/* maybe changed to 0 by pyi_pylib_set_runtime_opts() */
     *PI_Py_FrozenFlag = 1;
     pyi_pylib_set_runtime_opts(status);
-	PI_Py_SetProgramName(status->archivename); /*XXX*/
+    strcpy(_program_name, status->archivename);
+	PI_Py_SetProgramName(_program_name); /*XXX*/
 	PI_Py_Initialize();
 
     // TODO set sys.path by function from Python C API (Python 2.6+)
