@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-# Copyright (c) 2013, PyInstaller Development Team.
+# Copyright (c) 2013-2016, PyInstaller Development Team.
 #
 # Distributed under the terms of the GNU General Public License with exception
 # for distributing bootloader.
@@ -11,11 +11,11 @@
 import os
 import sys
 
-from PyInstaller.compat import is_win, is_darwin, is_unix, is_virtualenv, venv_real_prefix
+from PyInstaller.compat import is_win, is_darwin, is_unix, is_venv, base_prefix
 from PyInstaller.compat import modname_tkinter
-from PyInstaller.bindepend import selectImports, getImports
-from PyInstaller.build import Tree
-from PyInstaller.hooks.hookutils import exec_statement, logger
+from PyInstaller.depend.bindepend import selectImports, getImports
+from PyInstaller.building.datastruct import Tree
+from PyInstaller.utils.hooks import exec_statement, logger
 
 
 def _handle_broken_tcl_tk():
@@ -33,8 +33,8 @@ def _handle_broken_tcl_tk():
     -------
     https://github.com/pypa/virtualenv/issues/93
     """
-    if is_win and is_virtualenv:
-        basedir = os.path.join(venv_real_prefix, 'tcl')
+    if is_win and is_venv:
+        basedir = os.path.join(base_prefix, 'tcl')
         files = os.listdir(basedir)
 
         # Detect Tcl/Tk paths.
@@ -139,12 +139,13 @@ def _find_tcl_tk_dir():
         'from %s import Tcl; print(Tcl().eval("info library"))' % modname_tkinter)
     tk_version = exec_statement(
         'from _tkinter import TK_VERSION; print(TK_VERSION)')
+
     # TK_LIBRARY is in the same prefix as Tcl.
     tk_root = os.path.join(os.path.dirname(tcl_root), 'tk%s' % tk_version)
     return tcl_root, tk_root
 
 
-def _find_tcl_tk(mod):
+def _find_tcl_tk(hook_api):
     """
     Get a platform-specific 2-tuple of the absolute paths of the top-level
     external data directories for both Tcl and Tk, respectively.
@@ -155,15 +156,16 @@ def _find_tcl_tk(mod):
         2-tuple whose first element is the value of `${TCL_LIBRARY}` and whose
         second element is the value of `${TK_LIBRARY}`.
     """
-    bins = selectImports(mod.__file__)
+    bins = selectImports(hook_api.__file__)
 
     if is_darwin:
         # _tkinter depends on system Tcl/Tk frameworks.
+        # For example this is the case of Python from homebrew.
         if not bins:
-            # 'mod.pyinstaller_binaries' can't be used because on Mac OS X _tkinter.so
+            # 'hook_api.binaries' can't be used because on Mac OS X _tkinter.so
             # might depend on system Tcl/Tk frameworks and these are not
-            # included in 'mod.pyinstaller_binaries'.
-            bins = getImports(mod.__file__)
+            # included in 'hook_api.binaries'.
+            bins = getImports(hook_api.__file__)
             # Reformat data structure from
             #     set(['lib1', 'lib2', 'lib3'])
             # to
@@ -191,7 +193,7 @@ def _find_tcl_tk(mod):
     return tcl_tk
 
 
-def _collect_tcl_tk_files(mod):
+def _collect_tcl_tk_files(hook_api):
     """
     Get a list of TOC-style 3-tuples describing all external Tcl/Tk data files.
 
@@ -203,7 +205,7 @@ def _collect_tcl_tk_files(mod):
     # Workaround for broken Tcl/Tk detection in virtualenv on Windows.
     _handle_broken_tcl_tk()
 
-    tcl_root, tk_root = _find_tcl_tk(mod)
+    tcl_root, tk_root = _find_tcl_tk(hook_api)
 
     # TODO Shouldn't these be fatal exceptions?
     if not tcl_root:
@@ -229,14 +231,17 @@ def _collect_tcl_tk_files(mod):
     return (tcltree + tktree)
 
 
-def hook(mod):
+def hook(hook_api):
+    # Use a hook-function to get the module's attr:`__file__` easily.
     """
     Freeze all external Tcl/Tk data files if this is a supported platform *or*
     log a non-fatal error otherwise.
     """
     if is_win or is_darwin or is_unix:
-        mod.pyinstaller_datas.extend(_collect_tcl_tk_files(mod))
+        # _collect_tcl_tk_files(hook_api) returns a Tree (which is okay),
+        # so we need to store it into `hook_api.datas` to prevent
+        # `building.imphook.format_binaries_and_datas` from crashing
+        # with "too many values to unpack".
+        hook_api.add_datas(_collect_tcl_tk_files(hook_api))
     else:
         logger.error("... skipping Tcl/Tk handling on unsupported platform %s", sys.platform)
-
-    return mod

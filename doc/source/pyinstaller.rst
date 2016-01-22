@@ -7,8 +7,7 @@ pyinstaller
 Configure and build y |PyInstaller| project in one run
 -------------------------------------------------------------
 
-:Author:    Giovanni Bajo
-:Copyright: 2005-2011 by Giovanni Bajo, based on previous work under copyright 2002 McMillan Enterprises, Inc.
+:Copyright: 2010-2016 PyInstaller Development Team, 2005-2009 Giovanni Bajo, based on previous work under copyright 2002 McMillan Enterprises, Inc.
 :Version:   |PyInstallerVersion|
 :Manual section: 1
 
@@ -38,6 +37,15 @@ OPTIONS
 
 .. include:: _pyinstaller-options.tmp
 
+ENVIRONMENT VARIABLES
+=====================
+
+====================== ========================================================
+PYINSTALLER_CONFIG_DIR This changes the directory where PyInstaller caches some
+                       files. The default location for this is operating system
+                       dependent, but is typically a subdirectory of the home
+                       directory.
+====================== ========================================================
 
 SEE ALSO
 =============

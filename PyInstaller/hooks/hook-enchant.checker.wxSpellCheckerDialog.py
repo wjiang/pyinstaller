@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-# Copyright (c) 2013, PyInstaller Development Team.
+# Copyright (c) 2013-2016, PyInstaller Development Team.
 #
 # Distributed under the terms of the GNU General Public License with exception
 # for distributing bootloader.
@@ -15,8 +15,8 @@
 """
 
 # TODO find better workaround
-def hook(mod):
+def hook(hook_api):
     # Workaround DOES NOT work with well with python 2.6
     # let's just disable it
     #return None
-    return mod
+    pass
